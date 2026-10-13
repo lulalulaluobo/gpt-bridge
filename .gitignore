@@ -1,0 +1,21 @@
+# Publish source only. Personal research, screenshots, deployment state and drafts stay local.
+/*
+!/.gitignore
+!/README.md
+!/desktop/
+/desktop/*
+!/desktop/Package.swift
+!/desktop/README.md
+!/desktop/Resources/
+!/desktop/Sources/
+!/desktop/Tests/
+!/desktop/bridge/
+!/desktop/scripts/
+!/desktop/runtime/
+/desktop/scripts/__pycache__/
+/desktop/runtime/*
+!/desktop/runtime/package.json
+!/desktop/runtime/package-lock.json
+.DS_Store
+*.pyc
+*.tmp

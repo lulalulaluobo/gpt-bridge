@@ -1,0 +1,107 @@
+# gpt-bridge
+
+把你的 Mac 连接到 ChatGPT：在网页中使用私有 MCP 插件，读取本地资料、写入授权目录，并按需执行本机命令。桌面应用负责隧道连接、工作区和目录权限；日常使用无需运行终端脚本。
+
+[下载 0.10](https://github.com/lulalulaluobo/gpt-bridge/releases/tag/v0.10) · [全部版本](https://github.com/lulalulaluobo/gpt-bridge/releases) · [桌面端说明](desktop/README.md)
+
+## 0.10 的功能
+
+- 原生 macOS 菜单栏应用，显示名称为 **gpt-bridge**。
+- 保存多个本地工作区，每次启用一个；其他工作区的目录不加入当前文件访问范围。
+- 使用 macOS 文件夹选择器添加或更换目录，名称直接取路径末尾的文件夹名，无需另填名称。
+- 每个工作区有主目录和额外访问目录，逐目录选择“只读”或“读写”。
+- 命令执行单独开关；切换工作区和连接前检查活动任务。
+- Runtime API key 保存在本机钥匙串；可选登录 Mac 时启动、打开应用后自动连接。
+
+## 安装
+
+目前提供 Apple Silicon（arm64）版本，要求 macOS 14 或更新版本。
+
+1. 下载 Release 中的 `gpt-bridge-0.10-arm64.dmg`，打开后将 `gpt-bridge.app` 拖入 Applications。
+2. 从 Applications 打开应用，通过顶部菜单栏进入设置。安装完成后可以推出 DMG。
+3. 当前发行包使用个人临时签名，尚未获得 Developer ID 签名和 Apple 公证。macOS 若拦截首次打开，可在确认来源后，通过“系统设置 → 隐私与安全性 → 仍要打开”处理；无需全局关闭系统安全检查。
+
+## 首次连接
+
+### 1. 创建私有隧道和 Runtime key
+
+在 [OpenAI Platform 的 Tunnels 设置](https://platform.openai.com/settings/organization/tunnels)创建隧道，只关联你打算使用的组织及私人 ChatGPT 工作区。复制以 `tunnel_` 开头的 Tunnel ID。
+
+在同一组织的 [API keys 设置](https://platform.openai.com/settings/organization/api-keys)创建具备隧道 **Read + Use** 权限的 Runtime API key。管理隧道所用的管理权限与桌面运行所需权限分别配置；把 Runtime key 填入本机应用，保存到钥匙串，不要提交到仓库或发进聊天。
+
+这些入口需要你的账号具备相应权限；若入口不可用，先核对组织、ChatGPT 工作区及账号权限。
+
+### 2. 在应用中配置
+
+填写 Tunnel ID 和 Runtime API key，使用文件夹选择器选择主工作目录。根据需要添加额外目录并设置只读或读写，保存后连接。已有密钥时输入框留空表示继续使用已保存密钥。
+
+界面显示进程运行、健康检查及就绪状态均通过后，再进行网页调用。状态通过说明运行器已就绪，首次真实工具调用仍需在网页完成。
+
+### 3. 添加 ChatGPT 插件
+
+在 ChatGPT 设置中创建私有自定义 MCP 插件，连接方式选择 **Tunnel / 隧道**，选中同一隧道。此本地 MCP 服务使用“无需身份验证”；私有隧道仍受组织及 ChatGPT 工作区关联范围约束。保持平台工具操作确认，按需启用工具。
+
+在新对话中用 `@` 选中插件，实际调用 `read_file` 读取授权目录里的一个测试文件。ChatGPT 界面入口和可用权限可能因账号而异。
+
+升级增加工具后，可在插件设置中刷新工具。切换本地工作区继续复用同一隧道，无需为每个项目重建插件；更换隧道则需要更新网页插件的连接。
+
+## 工作区和权限
+
+工作区是当前本地项目。主目录提供默认工作位置，额外目录可用于共享资料或输出文件。工作区、目录名称均由所选目录的最后一段路径自动生成。
+
+| 设置 | 文件工具的行为 |
+| --- | --- |
+| 只读 | 允许读取、查看、搜索；拒绝写入和修改 |
+| 读写 | 允许读取及写入、编辑、创建、移动等已开放操作 |
+| 未授权目录 | 拒绝访问 |
+| 未选中的工作区 | 其目录不参与当前授权 |
+
+写入检查在本地执行层落实，不依靠 ChatGPT 自觉遵守提示词。移动文件时同时检查源和目标，路径及符号链接会按实际目标检查。目录规则的冲突处理和测试见桌面端实现。
+
+**命令开关具有独立含义。** 开启后，命令按当前 Mac 用户权限运行，可能读取或修改文件工具授权范围以外的内容；目录只读规则不是命令的操作系统沙箱。需要文件工具遵守只读范围时，应关闭命令执行。若希望任意程序也无法写入只读目录，需要另行使用系统级隔离。[Desktop Commander 的权限说明](https://github.com/wonderwhy-er/DesktopCommanderMCP/blob/main/SECURITY.md)介绍了这一限制。
+
+本版不向插件暴露 PDF 写入/生成功能；`read_file` 的 PDF 读取按底层能力提供。核心连接和文件、命令功能不需要下载 Chrome。
+
+关闭设置窗口后，菜单栏应用和连接继续运行。“断开并退出”会先停止运行器；有活动任务时先等待完成或取消任务。关机、休眠或网络断开期间远程调用可能不可用，重新连接不能让原进程跨关机继续运行。
+
+## 从 MacBridge 升级
+
+gpt-bridge 0.10 保留原应用身份、钥匙串服务及数据目录，可读取已有 MacBridge 配置和凭据。旧单目录配置会迁移为一个本地工作区。
+
+升级前先断开并退出 MacBridge，安装 gpt-bridge 后从 Applications 打开。不要同时运行两个版本；确认新版本正常后，可移除旧 `/Applications/MacBridge.app`。不要删除旧应用数据目录或钥匙串条目。
+
+- 配置、运行记录及专用执行层 HOME：`~/Library/Application Support/MacBridge/`
+- 钥匙串服务：`local.macbridge.desktop.runtime`
+- 原脚本版部署：`~/.local/share/macbridge/`，可通过应用的导入入口迁移；原文件不会随升级删除。
+
+应用名称更新不意味着需要重建已连接的 ChatGPT 插件。网页插件名称可按个人习惯保留或修改。
+
+## 源码构建
+
+需要 Apple Silicon Mac、Xcode Command Line Tools（含 Swift）、Python 3.9 或更新版本、可访问官方下载及 npm registry 的网络。
+
+```bash
+git clone https://github.com/lulalulaluobo/gpt-bridge.git
+cd gpt-bridge/desktop
+python3 scripts/bootstrap-runtime.py
+swift test
+python3 scripts/package.py --dmg
+```
+
+输出为 `desktop/dist/gpt-bridge-0.10-arm64.dmg`。打包结束默认移除临时 `.app`，避免出现多个应用入口；本机测试需要保留时追加 `--keep-app`。
+
+固定构建输入为 Node.js `24.9.0`、OpenAI tunnel-client `0.0.16`、Desktop Commander `0.2.52`。下载脚本校验官方归档的 SHA-256；执行层使用仓库内的 `desktop/runtime/package-lock.json` 和 `npm ci --ignore-scripts`，不复制用户的配置、密钥或运行中的依赖树。已有可信的相同版本构建输入可使用 `--node <bin/node>`、`--runtime-source <目录>`。
+
+应用内 `Contents/Resources/Licenses/` 保留第三方许可证和依赖清单，`build-manifest.json` 记录版本及构建输入摘要。源码中保留部分 `MacBridge` 内部名称用于兼容旧数据，这些内部名称不影响显示名称。
+
+## 已知依赖限制
+
+0.10 保留 Desktop Commander 0.2.52，并固定 `sharp 0.35.5`、`uuid 11.1.1`，将 `md-to-pdf` 的命令行 watcher 依赖单独替换为 `chokidar 4.0.3`。已验证图像转换、ExcelJS 工作簿读写、模块加载和 watcher 基本兼容。
+
+2026-10-13 的 `npm audit` 结果仍有 **6 个 moderate 依赖项、0 个 high、0 个 critical**，并非全部无漏洞。残留项来自同一条 `md-to-pdf → gray-matter → js-yaml 3 → argparse 1 → sprintf-js` 依赖链；`sprintf-js` 当时没有已发布的补丁版本。直接把 js-yaml 升至 4 会破坏 gray-matter 使用的 `safeLoad / safeDump` API，因此没有强制升级或降级 Desktop Commander。
+
+此链用于 PDF 生成的 frontmatter 处理及 js-yaml 命令行工具；当前 MCP 代理不暴露 PDF 生成/写入工具，普通文件读取与 PDF 读取不会调用 argparse 命令行路径。PDF 读取中可使用的 sharp 已升级修复。启用任意本机命令后，程序仍可自行调用本机第三方库，因此不能把这些组件的默认工具路径限制视为操作系统隔离。
+
+## 项目范围
+
+这是个人使用预览版。仓库未指定自有源码的开放许可证；第三方组件分别遵循随包许可证。发布包尚未完成 Apple 公证，后续对外稳定分发需补齐正式签名、公证和跨机器安装验证。
