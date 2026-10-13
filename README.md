@@ -2,6 +2,8 @@
 
 把你的 Mac 或 Windows 电脑连接到 ChatGPT：在网页中使用私有 MCP 插件，读取本地资料、写入授权目录，并按需执行本机命令。桌面应用负责隧道连接、工作区和目录权限；日常使用无需运行终端脚本。
 
+> 📘 第一次部署 MacBridge？建议先看[单文件部署教程](macbridge素材/MacBridge-部署教程.html)，按步骤完成隧道、桌面端、ChatGPT 插件和真实文件读写验证。教程截图已内嵌，下载这个 HTML 后即可独立打开。
+
 [下载 macOS 0.11](https://github.com/lulalulaluobo/gpt-bridge/releases/tag/v0.11) · [全部版本](https://github.com/lulalulaluobo/gpt-bridge/releases) · [macOS 说明](desktop/README.md) · [Windows 托盘版说明](windows/README.md)
 
 ## 产品截图

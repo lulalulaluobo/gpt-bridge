@@ -5,6 +5,9 @@
 !/assets/
 !/assets/diagrams/
 !/assets/screenshots/
+!/macbridge素材/
+/macbridge素材/*
+!/macbridge素材/MacBridge-部署教程.html
 !/desktop/
 !/windows/
 /desktop/*
