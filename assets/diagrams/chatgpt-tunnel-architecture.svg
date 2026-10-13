@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 820" role="img" aria-labelledby="title desc">
+  <title id="title">ChatGPT Tunnel 的工作原理</title>
+  <desc id="desc">ChatGPT 的 MCP 请求经 OpenAI Tunnel 转发到本机 tunnel-client，再经过 gpt-bridge 本地权限代理和 Desktop Commander，访问获准的文件夹；结果沿原隧道返回。电脑主动建立加密出站连接，不需要开放入站端口。</desc>
+  <defs>
+    <marker id="arrowBlue" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#3977aa" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker>
+    <marker id="arrowPurple" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#8862a4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker>
+    <filter id="pencil" x="-8%" y="-8%" width="116%" height="116%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.018" numOctaves="2" seed="8" result="noise"/>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.15" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+    <style>
+      .ink{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;fill:#263746}
+      .small{font-size:17px;fill:#586b79}.title{font-size:34px;font-weight:750;letter-spacing:.2px}.subtitle{font-size:18px;fill:#50677a}
+      .box{stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;filter:url(#pencil)}
+      .nodeTitle{font-size:20px;font-weight:700}.compactTitle{font-size:17px;font-weight:700}.nodeBody{font-size:16px;fill:#405667}.lane{font-size:17px;font-weight:700;letter-spacing:.5px}
+      .flow{fill:none;stroke:#3977aa;stroke-width:3;stroke-linecap:round;stroke-linejoin:round;marker-end:url(#arrowBlue)}
+      .back{fill:none;stroke:#8862a4;stroke-width:2.8;stroke-dasharray:9 8;stroke-linecap:round;stroke-linejoin:round;marker-end:url(#arrowPurple)}
+    </style>
+  </defs>
+  <rect width="1440" height="820" rx="28" fill="#fffdf8"/>
+  <path d="M43 90 Q310 83 570 91 T1080 89 T1395 94" fill="none" stroke="#ded8cb" stroke-width="1.5"/>
+
+  <text class="ink title" x="56" y="54">ChatGPT Tunnel 怎么连到你的电脑？</text>
+  <text class="ink subtitle" x="58" y="77">本机主动连出 OpenAI Tunnel；ChatGPT 的工具请求沿这条加密通道到达本机。</text>
+
+  <!-- Cloud side -->
+  <path class="box" d="M38 139 Q155 132 272 140 L272 434 Q164 441 39 433 Z" fill="#f2f7fc" stroke="#7298b9"/>
+  <text class="ink lane" x="59" y="174" fill="#547895">CHATGPT · 云端</text>
+  <path class="box" d="M57 207 Q146 201 243 208 L242 341 Q147 347 57 339 Z" fill="#ffffff" stroke="#73a5c8"/>
+  <circle cx="150" cy="242" r="24" fill="#e4f1fb" stroke="#73a5c8" stroke-width="2"/>
+  <path d="M137 240 Q141 232 149 238 L154 244 Q159 250 166 244 M163 249 Q159 257 151 251 L146 245 Q141 240 134 246" fill="none" stroke="#3977aa" stroke-width="2.6" stroke-linecap="round"/>
+  <text class="ink nodeTitle" text-anchor="middle" x="150" y="292">ChatGPT</text>
+  <text class="ink nodeBody" text-anchor="middle" x="150" y="319">自定义 MCP 插件</text>
+  <text class="ink nodeBody" text-anchor="middle" x="150" y="372">发起工具调用</text>
+  <text class="ink small" text-anchor="middle" x="150" y="399">例如：读取一个文件</text>
+
+  <!-- OpenAI tunnel service -->
+  <path class="box" d="M299 208 Q382 201 462 210 L460 340 Q380 347 299 339 Z" fill="#fff4df" stroke="#d7a453"/>
+  <path d="M336 246 C330 233 340 221 353 222 C359 207 382 209 387 222 C405 218 417 232 411 246 C427 251 423 270 409 273 L348 273 C330 272 323 255 336 246 Z" fill="#fffaf0" stroke="#c59043" stroke-width="2.3" stroke-linejoin="round"/>
+  <text class="ink nodeTitle" text-anchor="middle" x="380" y="304">OpenAI Tunnel</text>
+  <text class="ink nodeBody" text-anchor="middle" x="380" y="329">身份与隧道中转</text>
+  <text class="ink small" text-anchor="middle" x="380" y="372">按组织 / 工作区关联</text>
+  <text class="ink small" text-anchor="middle" x="380" y="397">控制谁可以使用隧道</text>
+
+  <!-- Request path -->
+  <path class="flow" d="M244 276 C264 273 278 273 296 276"/>
+  <path class="flow" d="M463 276 C483 273 497 273 516 276"/>
+  <text class="ink small" text-anchor="middle" x="269" y="252">MCP 请求</text>
+  <text class="ink small" text-anchor="middle" x="490" y="251">经隧道送达</text>
+
+  <!-- Local computer boundary -->
+  <path class="box" d="M534 135 Q750 128 973 137 T1402 137 L1400 617 Q1190 625 960 616 T536 620 Z" fill="#f2f8f3" stroke="#719883" stroke-dasharray="10 8"/>
+  <text class="ink lane" x="562" y="174" fill="#507a63">你的电脑 · 本地执行边界</text>
+  <text class="ink small" text-anchor="end" x="1372" y="174">macOS / Windows</text>
+
+  <!-- Local nodes -->
+  <path class="box" d="M557 211 Q644 205 731 213 L730 365 Q642 372 557 364 Z" fill="#eaf4ff" stroke="#729fc4"/>
+  <circle cx="644" cy="249" r="22" fill="#d8eafb" stroke="#6f9dbc" stroke-width="2"/>
+  <path d="M633 247 L655 247 M644 236 L644 260 M636 240 L652 256 M652 240 L636 256" stroke="#3977aa" stroke-width="2" stroke-linecap="round"/>
+  <text class="ink nodeTitle" text-anchor="middle" x="644" y="300">tunnel-client</text>
+  <text class="ink nodeBody" text-anchor="middle" x="644" y="327">本机客户端</text>
+  <text class="ink small" text-anchor="middle" x="644" y="350">接收隧道消息</text>
+
+  <path class="box" d="M765 211 Q851 205 938 213 L937 365 Q850 372 765 364 Z" fill="#eef0fb" stroke="#9084b7"/>
+  <path d="M830 234 L851 246 L851 270 Q850 285 830 294 Q811 285 810 270 L810 246 Z" fill="#e2def4" stroke="#8476ae" stroke-width="2.3" stroke-linejoin="round"/>
+  <path d="M820 264 L827 271 L840 256" fill="none" stroke="#725e9c" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text class="ink nodeTitle" text-anchor="middle" x="851" y="321">gpt-bridge 代理</text>
+  <text class="ink nodeBody" text-anchor="middle" x="851" y="347">逐项检查目录权限</text>
+
+  <path class="box" d="M972 211 Q1057 205 1144 213 L1143 365 Q1058 372 972 364 Z" fill="#fff3e4" stroke="#cc9863"/>
+  <path d="M1038 234 L1057 234 L1065 242 L1082 242 Q1087 243 1087 249 L1087 270 Q1086 276 1080 276 L1039 276 Q1034 275 1034 270 L1034 239 Q1034 234 1038 234 Z" fill="#f9dfbf" stroke="#be874e" stroke-width="2.2" stroke-linejoin="round"/>
+  <text class="ink compactTitle" text-anchor="middle" x="1058" y="311">Desktop Commander</text>
+  <text class="ink nodeBody" text-anchor="middle" x="1058" y="340">执行本地 MCP 工具</text>
+
+  <path class="box" d="M1178 211 Q1270 205 1368 213 L1367 365 Q1270 372 1178 364 Z" fill="#eef7e9" stroke="#82a66c"/>
+  <path d="M1213 241 Q1227 237 1241 241 L1241 270 Q1227 274 1213 270 Z M1241 241 Q1255 237 1269 241 L1269 270 Q1255 274 1241 270 Z M1213 251 L1269 251" fill="#d9edcd" stroke="#71945e" stroke-width="2" stroke-linejoin="round"/>
+  <text class="ink nodeTitle" text-anchor="middle" x="1272" y="306">获准的文件夹</text>
+  <text class="ink nodeBody" text-anchor="middle" x="1272" y="334">主目录 + 共用目录</text>
+  <text class="ink small" text-anchor="middle" x="1272" y="356">只读 / 读写</text>
+
+  <!-- Local forward data path -->
+  <path class="flow" d="M731 278 C742 275 751 275 763 278"/>
+  <path class="flow" d="M938 278 C949 275 959 275 970 278"/>
+  <path class="flow" d="M1144 278 C1155 275 1165 275 1176 278"/>
+
+  <!-- Return path -->
+  <path class="back" d="M1270 390 C1270 431 1090 438 854 438 C595 438 309 438 146 430 L146 407"/>
+  <rect x="578" y="418" width="290" height="35" rx="16" fill="#fffdf8"/>
+  <text class="ink small" text-anchor="middle" x="723" y="441" fill="#75558f">工具结果沿同一隧道返回 ChatGPT</text>
+
+  <!-- Desktop app control plane -->
+  <path class="box" d="M578 481 Q963 473 1362 482 L1361 586 Q963 594 578 585 Z" fill="#fff" stroke="#8c9b9f"/>
+  <circle cx="623" cy="532" r="23" fill="#e8edf0" stroke="#84959b" stroke-width="2"/>
+  <path d="M609 533 Q623 532 637 533 M623 518 L623 547 M613 523 L633 543 M633 523 L613 543" fill="none" stroke="#62757b" stroke-width="2.4" stroke-linecap="round"/>
+  <text class="ink nodeTitle" x="663" y="521">gpt-bridge 桌面应用</text>
+  <text class="ink nodeBody" x="663" y="551">连接隧道 · 保存 Runtime key · 选择工作区与共用目录权限</text>
+  <text class="ink small" x="663" y="575">密钥留在本机；目录权限由本地代理检查</text>
+  <path d="M644 480 C644 451 644 427 644 368" fill="none" stroke="#8879ab" stroke-width="2.4" stroke-dasharray="6 7" marker-end="url(#arrowPurple)"/>
+  <path d="M694 480 C711 455 790 440 829 369" fill="none" stroke="#8879ab" stroke-width="2.4" stroke-dasharray="6 7" marker-end="url(#arrowPurple)"/>
+
+  <!-- Outbound connection & safety note -->
+  <path d="M645 210 C632 191 511 196 409 203" fill="none" stroke="#a06e9e" stroke-width="2.7" stroke-dasharray="8 7" marker-end="url(#arrowPurple)"/>
+  <rect x="447" y="181" width="177" height="28" rx="13" fill="#fffdf8"/>
+  <text class="ink small" text-anchor="middle" x="535" y="201" fill="#765b8d">本机主动建立 TLS</text>
+
+  <path d="M42 681 Q386 675 710 682 T1395 679" fill="none" stroke="#ded8cb" stroke-width="1.5"/>
+  <circle cx="70" cy="733" r="18" fill="#fff0cf" stroke="#d3a34c" stroke-width="2"/>
+  <text class="ink" text-anchor="middle" x="70" y="740" font-size="21" font-weight="700" fill="#9a6f22">!</text>
+  <text class="ink nodeBody" x="103" y="729">开启命令执行时，命令使用当前系统账户权限；只读 / 读写目录规则约束文件工具，不是操作系统沙箱。</text>
+  <text class="ink small" x="103" y="761">无需把本机端口公开到互联网。能否调用隧道仍受 OpenAI 组织与 ChatGPT 工作区关联范围控制。</text>
+</svg>

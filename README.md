@@ -24,6 +24,12 @@
 
 ![gpt-bridge macOS 连接与设置页面](assets/screenshots/macos-connection-settings.png)
 
+## ChatGPT Tunnel 原理
+
+ChatGPT 不会直连你的电脑端口。本机 `tunnel-client` 主动与 OpenAI Tunnel 建立加密连接；MCP 请求经云端中转到本机后，由 gpt-bridge 权限代理检查，再交给本地工具执行，结果沿同一隧道返回。隧道关联限制云端谁能调用；本地目录权限限制文件工具能访问哪些路径。
+
+![ChatGPT Tunnel 从 ChatGPT 到本机工作区的连接原理图](assets/diagrams/chatgpt-tunnel-architecture.svg)
+
 ## Windows 托盘版
 
 新增 Windows 10 / 11 x64 原生桌面应用。图标常驻任务栏右侧托盘，关闭或最小化设置窗口后继续连接；双击图标打开设置，右键菜单可切换工作区、连接、断开和退出。支持共用目录的只读 / 读写权限、单独命令开关、登录启动及自动连接，Runtime key 使用当前 Windows 用户的 DPAPI 加密保存。
