@@ -4,6 +4,26 @@
 
 [下载 macOS 0.11](https://github.com/lulalulaluobo/gpt-bridge/releases/tag/v0.11) · [全部版本](https://github.com/lulalulaluobo/gpt-bridge/releases) · [macOS 说明](desktop/README.md) · [Windows 托盘版说明](windows/README.md)
 
+## 产品截图
+
+### 菜单栏快速控制
+
+查看连接状态、断开或重启连接，并快速切换工作区。
+
+![gpt-bridge 菜单栏连接与工作区控制](assets/screenshots/macos-menu-bar.png)
+
+### 共用目录权限
+
+共用目录只需添加一次，即可在所有工作区复用；每个目录单独设置只读或读写。
+
+![gpt-bridge macOS 共用目录与权限设置](assets/screenshots/macos-shared-directories.png)
+
+### 连接设置
+
+管理隧道连接、后台启动及诊断。
+
+![gpt-bridge macOS 连接与设置页面](assets/screenshots/macos-connection-settings.png)
+
 ## Windows 托盘版
 
 新增 Windows 10 / 11 x64 原生桌面应用。图标常驻任务栏右侧托盘，关闭或最小化设置窗口后继续连接；双击图标打开设置，右键菜单可切换工作区、连接、断开和退出。支持共用目录的只读 / 读写权限、单独命令开关、登录启动及自动连接，Runtime key 使用当前 Windows 用户的 DPAPI 加密保存。

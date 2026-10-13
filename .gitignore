@@ -1,7 +1,9 @@
-# Publish source only. Personal research, screenshots, deployment state and drafts stay local.
+# Publish source and product images. Private working screenshots, research, deployment state and drafts stay local.
 /*
 !/.gitignore
 !/README.md
+!/assets/
+!/assets/screenshots/
 !/desktop/
 !/windows/
 /desktop/*
