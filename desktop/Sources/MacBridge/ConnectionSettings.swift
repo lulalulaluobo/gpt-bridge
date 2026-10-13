@@ -28,7 +28,6 @@ struct ConnectionSettings: View {
                     }
                     ConnectionForm(model: model)
                     GeneralSettings(model: model)
-                    ComputerControlView(control: model.computerControl)
                     ChatGPTGuide(model: model)
                 }
             }

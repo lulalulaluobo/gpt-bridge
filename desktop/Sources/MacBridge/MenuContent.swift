@@ -17,9 +17,6 @@ struct MenuContent: View {
                 Button("重启") { Task { await model.restart() } }.disabled(model.busy || model.selected == nil)
             }
             Divider()
-            Button("立即停止电脑控制", systemImage: "stop.circle", role: .destructive) {
-                Task { await model.computerControl.stop() }
-            }
             if let connection = model.selected {
                 Text("切换工作区").font(.caption).foregroundStyle(.secondary)
                 ForEach(connection.workspaces) { workspace in

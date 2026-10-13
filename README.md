@@ -100,6 +100,8 @@ ChatGPT 不会直连你的电脑端口。本机 `tunnel-client` 主动与 OpenAI
 
 本版不向插件暴露 PDF 写入/生成功能；`read_file` 的 PDF 读取按底层能力提供。核心连接和文件、命令功能不需要下载 Chrome。
 
+macOS 提供 `open_application` 工具，可按名称启动 Keynote、Safari、Numbers 等已安装应用，需要开启当前工作区的命令开关。例如 `{"app":"Keynote"}`。普通启动使用系统的 `open -a`，无需请求“控制 Keynote”的自动化权限；用 AppleScript 读取或修改应用文档时，macOS 仍会按目标应用要求首次授权。它位于“系统设置 → 隐私与安全性 → 自动化”。已有授权若因应用签名更新而失效，需重新允许；普通个人 Mac 没有一键授予全部应用自动化权限的选项。[Apple 自动化权限说明](https://support.apple.com/en-nz/guide/mac-help/mchl108e1718/mac)
+
 关闭设置窗口后，菜单栏应用和连接继续运行。“断开并退出”会先停止运行器；有活动任务时先等待完成或取消任务。关机、休眠或网络断开期间远程调用可能不可用，重新连接不能让原进程跨关机继续运行。
 
 ## 从 MacBridge 升级

@@ -20,7 +20,6 @@ final class AppModel {
     private let store: ConfigurationStore
     private let credentials = CredentialStore()
     private let runtime: any RuntimeManaging
-    let computerControl: ComputerControl
     private var appliedConnection: Connection?
     var connections: [Connection] { configuration.connections }
     var selected: Connection? { connections.first { $0.id == configuration.selectedID } }
@@ -57,7 +56,6 @@ final class AppModel {
     init(store: ConfigurationStore = ConfigurationStore(), resources: URL? = nil, monitor: Bool = true,
          runtime: (any RuntimeManaging)? = nil) {
         self.store = store
-        self.computerControl = ComputerControl(root: store.root, resources: resources ?? Bundle.main.resourceURL ?? Bundle.main.bundleURL)
         self.runtime = runtime ?? RuntimeClient(root: store.root, resources: resources ?? Bundle.main.resourceURL ?? Bundle.main.bundleURL)
         do {
             configuration = try store.load()
@@ -71,8 +69,6 @@ final class AppModel {
     }
 
     func launch() async {
-        // Screen control is always an explicit local session, never a login preference.
-        await computerControl.stop()
         await refresh()
         wantsConnection = isConnected && !configuration.manuallyDisconnected
         if ProcessInfo.processInfo.arguments.contains("--resume-after-upgrade"), let connection = selected {
@@ -191,7 +187,6 @@ final class AppModel {
     }
 
     func disconnect() async {
-        await computerControl.stop()
         guard !busy else { return }
         busy = true; wantsConnection = false
         defer { busy = false }
@@ -331,7 +326,6 @@ final class AppModel {
     }
 
     func shutdown() async -> Bool {
-        await computerControl.stop()
         guard !busy else { return false }
         busy = true; wantsConnection = false
         defer { busy = false }

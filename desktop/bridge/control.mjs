@@ -186,11 +186,6 @@ function activity(s, rows = snapshot()) {
   const matched = proxy.length === 1 && sessions?.proxyPID === proxy[0].pid;
   const dc = matched ? tree.find(p => p.pid === sessions.dcPID && p.parent === proxy[0].pid && p.executable && samePath(p.executable, node)) : null;
   if (dc) infrastructure.add(dc.pid);
-  if (!windows && matched && sessions.computerPID) {
-    const computer = tree.find(p => p.pid === sessions.computerPID && p.parent === proxy[0].pid &&
-      samePath(p.executable, path.join(resources, 'runtime/peekaboo/peekaboo')));
-    if (computer) infrastructure.add(computer.pid);
-  }
   const other = tree.filter(p => !infrastructure.has(p.pid));
   // DC's in-process Node REPL sessions use negative virtual PIDs. They still
   // count as active sessions even though they have no separate OS process.

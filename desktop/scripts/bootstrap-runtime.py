@@ -14,13 +14,6 @@ NODE_VERSION = '24.9.0'
 TUNNEL_VERSION = '0.0.16'
 INPUTS = (
     {
-        'filename': 'peekaboo-macos-arm64.tar.gz',
-        'url': 'https://github.com/openclaw/Peekaboo/releases/download/v4.9.2/peekaboo-macos-arm64.tar.gz',
-        'sha256': 'd0679fdccab7295261add8be4880a7ba0f87a8e6e1aa0fec1d21c6c98c79f448',
-        'checksums': 'https://github.com/openclaw/Peekaboo/releases/download/v4.9.2/checksums.txt',
-        'destination': 'peekaboo-macos-arm64',
-    },
-    {
         'filename': 'node-v24.9.0-darwin-arm64.tar.gz',
         'url': 'https://nodejs.org/dist/v24.9.0/node-v24.9.0-darwin-arm64.tar.gz',
         'sha256': '961024296c2a8e60daed0784f8b61e0fab5c51d197502a92eff052c72b53209b',
