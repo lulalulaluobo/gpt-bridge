@@ -8,7 +8,7 @@
 
 新增 Windows 10 / 11 x64 原生桌面应用。图标常驻任务栏右侧托盘，关闭或最小化设置窗口后继续连接；双击图标打开设置，右键菜单可切换工作区、连接、断开和退出。支持共用目录的只读 / 读写权限、单独命令开关、登录启动及自动连接，Runtime key 使用当前 Windows 用户的 DPAPI 加密保存。
 
-在 Windows 上运行 `python windows/scripts/package.py`，生成包含全部运行依赖的 `windows/dist/gpt-bridge-0.11-windows-x64.zip`。完整解压后打开 `gpt-bridge.exe`，无需另装 Node.js。当前为未签名预览版，尚未发布 Windows Release 附件。[Windows 的使用、构建与验证](windows/README.md)
+在 Windows 上运行 `python windows/scripts/package.py` 后，再运行 `python windows/scripts/installer.py`，生成包含全部依赖的单文件安装包 `windows/dist/gpt-bridge-0.11-windows-x64-setup.exe`。双击安装，从开始菜单打开，无需手动解压或另装 Node.js；同时提供 ZIP 便携版。当前为未签名预览版，尚未发布 Windows Release 附件。[Windows 的使用、构建与验证](windows/README.md)
 
 ## 0.11 的功能
 
