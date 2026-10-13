@@ -3,17 +3,19 @@ import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { FilePermissions, loadPolicy } from '../bridge/permissions.mjs';
+import { windows, samePath, privateDirectory, assertPrivateFile, runPowerShell } from '../bridge/platform.mjs';
 
 const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "gpt-bridge permissions ' ")));
+if (windows) privateDirectory(root);
 const rw = path.join(root, 'project'), ro = path.join(rw, 'reference'), outside = path.join(root, 'outside');
 const protectedDirectory = path.join(rw, 'private-state');
 for (const directory of [rw, ro, outside, protectedDirectory]) fs.mkdirSync(directory, { recursive: true });
 fs.writeFileSync(path.join(rw, 'working.txt'), 'working');
 fs.writeFileSync(path.join(ro, 'notes.txt'), 'notes');
 fs.writeFileSync(path.join(protectedDirectory, 'sensitive.txt'), 'private');
-fs.symlinkSync(outside, path.join(rw, 'escape'));
-fs.symlinkSync(path.join(outside, 'missing'), path.join(rw, 'dangling'));
-fs.symlinkSync(ro, path.join(rw, 'ro-link'));
+fs.symlinkSync(outside, path.join(rw, 'escape'), windows ? 'junction' : 'dir');
+fs.symlinkSync(path.join(outside, 'missing'), path.join(rw, 'dangling'), windows ? 'junction' : 'dir');
+fs.symlinkSync(ro, path.join(rw, 'ro-link'), windows ? 'junction' : 'dir');
 const policyFile = path.join(root, 'policy.json');
 fs.writeFileSync(policyFile, JSON.stringify({ schemaVersion: 1, workspaceID: 'tests', workspaceRoot: rw,
   allowCommands: false, grants: [{ path: rw, access: 'readWrite' }, { path: ro, access: 'readOnly' }],
@@ -36,12 +38,23 @@ try {
   rejected(() => permissions.move(path.join(rw, 'working.txt'), path.join(ro, 'moved.txt')));
   rejected(() => permissions.move(rw, path.join(rw, 'copy')));
   const listed = permissions.list(rw, 3);
-  assert(listed.includes('reference/notes.txt') && !listed.includes('sensitive.txt') && !listed.includes('private-state') && !listed.includes('escape')); checks++;
+  assert(listed.includes(path.join('reference', 'notes.txt')) && !listed.includes('sensitive.txt') && !listed.includes('private-state') && !listed.includes('escape')); checks++;
   rejected(() => permissions.searchRoot(rw));
   assert.equal(permissions.searchRoot(ro), ro); checks++;
   fs.linkSync(path.join(rw, 'working.txt'), path.join(outside, 'linked.txt'));
   rejected(() => permissions.authorize(path.join(rw, 'working.txt')));
-  fs.chmodSync(policyFile, 0o644); rejected(() => loadPolicy(policyFile));
+  if (windows) {
+    assertPrivateFile(policyFile); checks++;
+    assert(samePath(permissions.authorize(path.join(ro, 'notes.txt').toUpperCase()), path.join(ro, 'notes.txt'))); checks++;
+    rejected(() => permissions.authorize(path.join(rw, 'working.txt:secret')));
+    rejected(() => permissions.authorize('\\\\?\\' + path.join(rw, 'working.txt')));
+    rejected(() => permissions.authorize(path.join(rw, 'NUL.txt')));
+    runPowerShell(`$p = [Console]::In.ReadToEnd() | ConvertFrom-Json; $acl=[IO.File]::GetAccessControl($p);
+      $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new(
+        [Security.Principal.SecurityIdentifier]::new('S-1-5-32-545'), 'Read', 'Allow'));
+      [IO.File]::SetAccessControl($p, $acl);`, policyFile);
+  } else fs.chmodSync(policyFile, 0o644);
+  rejected(() => loadPolicy(policyFile));
   console.log(JSON.stringify({ passed: true, checks, nestedReadOnlyOverrides: true, realAncestorResolution: true,
     symlinkEscapeDenied: true, hardLinkDenied: true, protectedSubtreeHidden: true, moveBothSidesChecked: true }));
 } finally { fs.rmSync(root, { recursive: true, force: true }); }

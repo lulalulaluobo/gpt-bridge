@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { FilePermissions, PermissionError, loadPolicy, canonicalPath, within } from './permissions.mjs';
+import { windows, snapshot, terminateTracked } from './platform.mjs';
 
 const [entry, config, policyFile, sessionsFile] = process.argv.slice(2);
 const require = createRequire(pathToFileURL(entry));
@@ -16,6 +17,7 @@ const recordPath = canonicalPath(sessionsFile);
 if (!policy.protectedPaths.some(p => within(recordPath, p))) throw new Error('Session records must be inside protected application state.');
 const { toolArgSchemas } = await import(pathToFileURL(path.join(path.dirname(entry), 'tools/schemas.js')));
 const commandTools = new Set(['start_process', 'read_process_output', 'interact_with_process', 'force_terminate', 'list_sessions']);
+const userPlatform = windows ? 'Windows' : 'Mac';
 const safeTools = new Set(['read_file', 'read_multiple_files', 'write_file', 'create_directory', 'list_directory',
   'move_file', 'start_search', 'get_more_search_results', 'stop_search', 'list_searches', 'get_file_info', 'edit_block', ...commandTools]);
 const deniedArgs = new Set(['options']);
@@ -36,7 +38,7 @@ const child = new StdioClientTransport({ command: process.execPath,
 child.stderr?.on('data', chunk => process.stderr.write(chunk));
 const client = new Client({ name: 'gpt-bridge-permission-proxy', version: '0.11' });
 const server = new Server({ name: 'gpt-bridge', version: '0.11' }, { capabilities: { tools: {} },
-  instructions: 'Call workspace_info before working. Only the selected local workspace grants apply. File tools enforce directory read-only/read-write permissions. Commands, when enabled, run with the Mac user privileges and are not isolated by directory permissions.' });
+  instructions: `Call workspace_info before working. Only the selected local workspace grants apply. File tools enforce directory read-only/read-write permissions. Commands, when enabled, run with the ${userPlatform} user privileges and are not isolated by directory permissions.` });
 async function refreshSessions() {
   if (refreshPending || stopping) return;
   refreshPending = true;
@@ -112,7 +114,7 @@ server.setRequestHandler(types.CallToolRequestSchema, async request => {
     if (Object.keys(request.params.arguments || {}).length) return errorResult('workspace_info accepts no arguments.');
     return textResult(JSON.stringify({ ...policy, protectedPaths: undefined,
       workspaceName: path.basename(policy.workspaceRoot), permissionScope: 'file tools',
-      commandMode: policy.allowCommands ? 'enabled: current Mac user privileges; directory rules do not sandbox commands' : 'disabled' }, null, 2));
+      commandMode: policy.allowCommands ? `enabled: current ${userPlatform} user privileges; directory rules do not sandbox commands` : 'disabled' }, null, 2));
   }
   if (!safeTools.has(name) || !availableTools.some(t => t.name === name)) return errorResult('This tool is not enabled by gpt-bridge.');
   // Register before inspecting the controller lock. If a call wins the race,
@@ -126,7 +128,20 @@ server.setRequestHandler(types.CallToolRequestSchema, async request => {
     }
     const args = await prepare(name, request.params.arguments || {});
     if (name === 'list_directory') return textResult(permissions.list(args.path, args.depth));
+    let terminationTree = [];
+    if (windows && name === 'force_terminate' && args.pid > 0) {
+      const rows = snapshot();
+      const descendants = pid => [...rows.values()].filter(p => p.parent === pid &&
+        (!rows.has(pid) || p.started >= rows.get(pid).started)).flatMap(p => [p, ...descendants(p.pid)]);
+      const session = rows.get(args.pid);
+      if (session) {
+        if (!descendants(dcPID).some(p => p.pid === session.pid)) throw new PermissionError('This process no longer belongs to the workspace session.');
+        terminationTree = [session, ...descendants(session.pid)];
+      }
+    }
     const result = await client.callTool({ name, arguments: args }, undefined, { timeout: 240000 });
+    // DC kills the shell only on Windows. Reap its verified descendants before the shell's PID is lost.
+    if (!result.isError && terminationTree.length) terminateTracked(terminationTree);
     const text = resultText(result);
     if (name === 'start_process' && !result.isError) {
       const pid = text.match(/(?:Process|Node\.js session) started with PID\s+(-?\d+)/i)?.[1];
@@ -160,7 +175,7 @@ try {
   const tools = await client.listTools();
   availableTools = tools.tools.filter(t => safeTools.has(t.name)).map(({ _meta, ...tool }) => ({ ...tool,
     inputSchema: schemaFor(tool), description: commandTools.has(tool.name)
-      ? `[gpt-bridge: ${policy.allowCommands ? 'enabled; commands use Mac user privileges, outside file-directory rules' : 'disabled for this workspace'}] ${tool.description}`
+      ? `[gpt-bridge: ${policy.allowCommands ? `enabled; commands use ${userPlatform} user privileges, outside file-directory rules` : 'disabled for this workspace'}] ${tool.description}`
       : `[gpt-bridge: active workspace file permissions apply] ${tool.description}` }));
   await refreshSessions();
   monitor = setInterval(() => { void refreshSessions(); }, 3000); monitor.unref();

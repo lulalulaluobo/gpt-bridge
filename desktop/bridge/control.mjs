@@ -5,31 +5,39 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
+import { windows, binaryName, samePath, diskRoot, systemEnv, privateDirectory, assertPrivateFile,
+  snapshot, terminateTracked } from './platform.mjs';
+import { canonicalPath } from './permissions.mjs';
 
 const resources = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const [action, root] = process.argv.slice(2);
 const home = os.homedir();
-const bin = path.join(resources, 'runtime/bin/tunnel-client');
-const node = path.join(resources, 'runtime/bin/node');
+const bin = path.join(resources, 'runtime/bin', binaryName('tunnel-client'));
+const node = path.join(resources, 'runtime/bin', binaryName('node'));
 const entry = path.join(resources, 'runtime/dc/node_modules/@wonderwhy-er/desktop-commander/dist/index.js');
 const state = path.join(root || '', 'state');
-const alias = 'macbridge-desktop';
+const alias = windows ? 'gpt-bridge-windows' : 'macbridge-desktop';
 const profile = path.join(root || '', 'profiles/desktop.yaml');
 const activeFile = path.join(root || '', 'active.json');
 const launcher = path.join(root || '', 'dc-launcher');
+const mcpCommand = windows ? [node, path.join(resources, 'bridge/windows-launcher.mjs'), root || ''].map(quote).join(' ') : quote(launcher);
 const policyFile = path.join(root || '', 'policy.json');
 const sessionsFile = path.join(root || '', 'sessions.json');
-const cleanEnv = { HOME: home, PATH: '/usr/bin:/bin:/usr/sbin:/sbin', LANG: 'en_US.UTF-8',
+const cleanEnv = { ...systemEnv(home),
   TUNNEL_CLIENT_STATE_DIR: state, MCP_MAX_CONCURRENT_REQUESTS: '1', LOG_HTTP_RAW_UNSAFE: 'false' };
 let locked = false;
 function fail(message) { throw new Error(message); }
-function privateDirectory(p) {
-  fs.mkdirSync(p, { recursive: true, mode: 0o700 });
-  const s = fs.lstatSync(p);
-  if (!s.isDirectory() || s.isSymbolicLink() || s.uid !== process.getuid()) fail('应用数据目录的类型或属主异常。');
-  fs.chmodSync(p, 0o700);
-}
 function readJSON(p) { return JSON.parse(fs.readFileSync(p, 'utf8')); }
+async function removeEmptyLock(lock) {
+  // Windows antivirus/indexing can briefly retain the deleted owner file's directory entry.
+  for (let i = 0; ; i++) {
+    try { fs.rmdirSync(lock); return; }
+    catch (error) {
+      if (!windows || !['ENOTEMPTY', 'EPERM', 'EBUSY'].includes(error.code) || i >= 20) throw error;
+      await delay(100);
+    }
+  }
+}
 function atomic(p, value, mode = 0o600) {
   const temp = `${p}.${process.pid}.tmp`;
   fs.writeFileSync(temp, value, { mode, flag: 'wx' });
@@ -38,25 +46,17 @@ function atomic(p, value, mode = 0o600) {
 function native(verb, args = [], key) {
   try {
     return JSON.parse(execFileSync(bin, ['runtimes', verb, ...args, '--json'], {
-      env: { ...cleanEnv, ...(key ? { MACBRIDGE_RUNTIME_KEY: key } : {}) },
+      env: { ...cleanEnv, ...(key ? { MACBRIDGE_RUNTIME_KEY: key } : {}) }, windowsHide: true,
       encoding: 'utf8', timeout: 45000, maxBuffer: 2 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe']
     }));
   } catch {
     fail(`隧道${verb === 'connect' ? '连接' : verb === 'stop' ? '停止' : '状态查询'}失败。请检查网络、Tunnel ID、组织权限与 Runtime key。没有自动重复启动。`);
   }
 }
-function snapshot() {
-  const rows = new Map();
-  const output = execFileSync('/bin/ps', ['-axo', 'pid=,ppid=,lstart=,comm='], { encoding: 'utf8' });
-  for (const line of output.split('\n')) {
-    const m = line.trim().match(/^(\d+)\s+(\d+)\s+(\w+\s+\w+\s+\d+\s+[\d:]+\s+\d+)\s+(.+)$/);
-    if (m) rows.set(+m[1], { pid: +m[1], parent: +m[2], started: m[3], executable: m[4] });
-  }
-  return rows;
-}
 function children(rows, pid) {
   const out = [];
-  for (const row of rows.values()) if (row.parent === pid) out.push(row, ...children(rows, row.pid));
+  const parent = rows.get(pid);
+  for (const row of rows.values()) if (row.parent === pid && (!windows || !parent || row.started >= parent.started)) out.push(row, ...children(rows, row.pid));
   return out;
 }
 function nativeStatus() {
@@ -64,10 +64,11 @@ function nativeStatus() {
   const listed = native('list');
   if (!listed.aliases?.some(a => (typeof a === 'string' ? a : a.alias) === alias)) return null;
   const s = native('status', [alias]);
-  if (s.config_path !== profile || s.process?.target_value !== quote(launcher)) fail('运行记录与应用不匹配，请先检查已有实例。');
+  if (!samePath(s.config_path, profile) || (s.process_running && s.process?.target_value !== mcpCommand)) fail('运行记录与应用不匹配，请先检查已有实例。');
   return s;
 }
 function legacyRunning() {
+  if (windows) return false;
   const legacyBin = path.join(home, '.local/share/macbridge/vendor/tunnel-client-v0.0.16/tunnel-client');
   return [...snapshot().values()].some(p => p.executable === legacyBin);
 }
@@ -90,11 +91,11 @@ function validate(c) {
   if (!workspace || !/^[0-9a-f-]{36}$/i.test(workspace.id) || !Array.isArray(workspace.directories) ||
       !['readOnly', 'readWrite'].includes(workspace.rootAccess) || typeof workspace.allowCommands !== 'boolean') fail('工作区配置无效。');
   const canonical = p => {
-    if (typeof p !== 'string' || !path.isAbsolute(p) || p === '/' || /[\n\r\0]/.test(p)) fail('目录路径无效。');
+    if (typeof p !== 'string' || !path.isAbsolute(p) || diskRoot(p) || /[\n\r\0]/.test(p)) fail('目录路径无效。');
     let real;
-    try { real = fs.realpathSync(p); if (!fs.statSync(real).isDirectory()) fail('路径不是文件夹。'); }
+    try { real = canonicalPath(p); if (!fs.statSync(real).isDirectory()) fail('路径不是文件夹。'); }
     catch { fail('工作区中的目录不存在或无法访问，请重新选择文件夹。'); }
-    if (real === '/') fail('不能选择整个磁盘。');
+    if (diskRoot(real)) fail('不能选择整个磁盘。');
     return real;
   };
   const normalized = { id: workspace.id, root: canonical(workspace.root), rootAccess: workspace.rootAccess,
@@ -103,12 +104,21 @@ function validate(c) {
       return { id: d.id, path: canonical(d.path), access: d.access };
     }), allowCommands: workspace.allowCommands };
   const grants = [{ path: normalized.root, access: normalized.rootAccess }, ...normalized.directories.map(d => ({ path: d.path, access: d.access }))];
-  if (new Set(grants.map(g => g.path)).size !== grants.length) fail('访问目录重复，请保留一条权限规则。');
+  if (new Set(grants.map(g => windows ? g.path.toLowerCase() : g.path)).size !== grants.length) fail('访问目录重复，请保留一条权限规则。');
+  // Enforce inheritance here too; a caller must not promote a shared read-only subtree by selecting it as the root.
+  const inherited = normalized.directories.filter(d => {
+    const a = windows ? normalized.root.toLowerCase() : normalized.root;
+    const b = windows ? d.path.toLowerCase() : d.path;
+    return a.startsWith(b + path.sep);
+  }).sort((a, b) => b.path.length - a.path.length)[0];
+  if (inherited?.access === 'readOnly') { normalized.rootAccess = 'readOnly'; grants[0].access = 'readOnly'; }
   c.workspace = normalized.root;
   c.activeWorkspace = normalized;
   c.grants = grants;
   c.fingerprint = createHash('sha256').update(JSON.stringify(normalized)).digest('hex');
-  return c;
+  // Credentials are delivered through the environment, never persisted from arbitrary input fields.
+  return { id: c.id, name: c.name, tunnelID: c.tunnelID, workspace: c.workspace,
+    activeWorkspace: c.activeWorkspace, grants: c.grants, fingerprint: c.fingerprint };
 }
 function quote(s) { return `'${s.replaceAll("'", "'\\''")}'`; }
 function prepare(c) {
@@ -120,19 +130,26 @@ function prepare(c) {
   const configPath = path.join(dcHome, '.claude-server-commander/config.json');
   const defaults = readJSON(path.join(resources, 'bridge/dc-defaults.json'));
   const prior = fs.existsSync(configPath) ? readJSON(configPath) : {};
-  atomic(configPath, JSON.stringify({ ...prior, ...defaults, allowedDirectories: c.grants.map(g => g.path) }, null, 2));
+  atomic(configPath, JSON.stringify({ ...prior, ...defaults,
+    ...(windows ? { defaultShell: 'powershell.exe' } : {}), allowedDirectories: c.grants.map(g => g.path) }, null, 2));
   atomic(policyFile, JSON.stringify({ schemaVersion: 1, workspaceID: c.activeWorkspace.id,
     workspaceRoot: c.workspace, allowCommands: c.activeWorkspace.allowCommands, grants: c.grants,
     protectedPaths: [root, resources, path.join(home, '.config/macbridge'), path.join(home, '.local/share/macbridge'),
-      path.join(home, 'Library/Keychains')] }, null, 2));
+      ...(windows ? [path.join(home, 'AppData/Roaming/Microsoft/Credentials'), path.join(home, 'AppData/Local/Microsoft/Credentials')]
+        : [path.join(home, 'Library/Keychains')])] }, null, 2));
   if (fs.existsSync(sessionsFile)) fs.unlinkSync(sessionsFile);
+  if (windows) {
+    atomic(path.join(root, 'launch.json'), JSON.stringify({ dcHome, workspace: c.workspace, entry, configPath, policyFile, sessionsFile }));
+    return;
+  }
   const rgDir = path.join(resources, 'runtime/dc/node_modules/@vscode/ripgrep-darwin-arm64/bin');
   const envPath = `${path.dirname(node)}:${rgDir}:/usr/bin:/bin:/usr/sbin:/sbin`;
   const script = `#!/bin/bash\nset -euo pipefail\numask 077\ncd ${quote(c.workspace)}\nexec /usr/bin/env -i HOME=${quote(dcHome)} PATH=${quote(envPath)} TMPDIR=${quote(path.join(root, 'tmp/'))} LANG=en_US.UTF-8 DESKTOP_COMMANDER_DISABLE_TELEMETRY=1 MACBRIDGE_NO_BROWSER_DOWNLOAD=1 ${quote(node)} ${quote(path.join(resources, 'bridge/proxy.mjs'))} ${quote(entry)} ${quote(configPath)} ${quote(policyFile)} ${quote(sessionsFile)}\n`;
   atomic(launcher, script, 0o700);
 }
 function assertNoOther(s) {
-  const others = [...snapshot().values()].filter(p => path.basename(p.executable) === 'tunnel-client' && p.pid !== s?.process?.pid);
+  const others = [...snapshot().values()].filter(p =>
+    (p.executable ? path.basename(p.executable) : p.name) === binaryName('tunnel-client') && p.pid !== s?.process?.pid);
   if (others.length) fail(`另一个隧道运行器仍在运行（PID ${others.map(p => p.pid).join(', ')}）。请先停止它，避免重复连接。`);
 }
 async function stop() {
@@ -144,6 +161,8 @@ async function stop() {
   if (tasks.count || !tasks.valid) fail('连接内仍有活动任务或进程结构异常。请先结束任务，再断开或切换工作区。');
   const tracked = [rows.get(s.process.pid), ...tree].filter(Boolean);
   native('stop', [alias]);
+  // Windows' native manager terminates the tunnel process only. Reap precisely the idle descendants we verified above.
+  terminateTracked(tracked);
   for (let i = 0; i < 30; i++) {
     const now = snapshot();
     if (!tracked.some(p => now.get(p.pid)?.started === p.started && now.get(p.pid)?.executable === p.executable)) return status();
@@ -153,16 +172,19 @@ async function stop() {
 }
 function activity(s, rows = snapshot()) {
   const tree = children(rows, s.process.pid);
-  const proxy = tree.filter(p => p.parent === s.process.pid && p.executable === node);
+  const proxy = tree.filter(p => p.parent === s.process.pid && p.executable && samePath(p.executable, node));
   const infrastructure = new Set(proxy.map(p => p.pid));
+  if (windows) {
+    const consoleHost = path.join(cleanEnv.SystemRoot, 'System32/conhost.exe');
+    for (const p of tree) if (samePath(p.executable, consoleHost)) infrastructure.add(p.pid);
+  }
   let sessions = null;
   if (fs.existsSync(sessionsFile)) {
-    const info = fs.lstatSync(sessionsFile);
-    if (!info.isFile() || info.isSymbolicLink() || info.uid !== process.getuid() || (info.mode & 0o077)) fail('任务状态文件权限异常。');
+    try { assertPrivateFile(sessionsFile); } catch { fail('任务状态文件权限异常。'); }
     try { sessions = readJSON(sessionsFile); } catch { fail('任务状态文件无效，请稍后重试。'); }
   }
   const matched = proxy.length === 1 && sessions?.proxyPID === proxy[0].pid;
-  const dc = matched ? tree.find(p => p.pid === sessions.dcPID && p.parent === proxy[0].pid && p.executable === node) : null;
+  const dc = matched ? tree.find(p => p.pid === sessions.dcPID && p.parent === proxy[0].pid && p.executable && samePath(p.executable, node)) : null;
   if (dc) infrastructure.add(dc.pid);
   const other = tree.filter(p => !infrastructure.has(p.pid));
   // DC's in-process Node REPL sessions use negative virtual PIDs. They still
@@ -184,9 +206,9 @@ function stopLegacy(c) {
   if (legacyRunning()) fail('旧隧道仍在运行，未启动新实例。');
 }
 async function start(c) {
-  validate(c);
+  c = validate(c);
   const key = process.env.MACBRIDGE_RUNTIME_KEY;
-  if (!key || /[\n\r\0]/.test(key)) fail('钥匙串未提供有效 Runtime key。');
+  if (!key || /[\n\r\0]/.test(key)) fail('本机未提供有效 Runtime key。');
   for (const file of [node, bin, entry]) if (!fs.existsSync(file)) fail('应用运行包不完整，请重新安装。');
   const old = nativeStatus();
   const active = fs.existsSync(activeFile) ? readJSON(activeFile) : null;
@@ -197,7 +219,7 @@ async function start(c) {
   prepare(c);
   atomic(activeFile, JSON.stringify(c));
   native('connect', ['--alias', alias, '--profile', 'desktop', '--profile-dir', path.dirname(profile),
-    '--tunnel-id', c.tunnelID, '--mcp-command', quote(launcher), '--runtime-api-key', 'env:MACBRIDGE_RUNTIME_KEY',
+    '--tunnel-id', c.tunnelID, '--mcp-command', mcpCommand, '--runtime-api-key', 'env:MACBRIDGE_RUNTIME_KEY',
     '--control-plane-base-url', 'https://api.openai.com'], key);
   const result = status();
   if (!result.running || !result.healthy || !result.ready) fail('实例已创建但尚未就绪，请检查密钥及网络，或断开后重试。');
@@ -214,7 +236,7 @@ try {
       const owner = readJSON(ownerFile);
       const current = snapshot().get(owner.pid);
       if (current?.started === owner.started && current?.executable === owner.executable) fail('另一个连接操作正在执行，请稍后重试。');
-      fs.unlinkSync(ownerFile); fs.rmdirSync(lock);
+      fs.unlinkSync(ownerFile); await removeEmptyLock(lock);
     }
     try { fs.mkdirSync(lock, { mode: 0o700 }); locked = true; }
     catch { fail('另一个操作正在执行，请稍后重试。'); }
@@ -233,7 +255,8 @@ try {
   process.exitCode = 1;
 } finally {
   if (locked) {
-    fs.rmSync(path.join(root, 'control.lock/owner.json'), { force: true });
-    fs.rmdirSync(path.join(root, 'control.lock'));
+    // Node 24.9's Windows rmSync can silently leave files behind in Unicode paths; unlink is reliable.
+    fs.unlinkSync(path.join(root, 'control.lock', 'owner.json'));
+    await removeEmptyLock(path.join(root, 'control.lock'));
   }
 }

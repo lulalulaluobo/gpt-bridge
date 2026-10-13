@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { windows, binaryName, privateDirectory, systemEnv, assertPrivateFile, snapshot } from '../bridge/platform.mjs';
 
 const desktop = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const resources = process.argv[2] ? path.resolve(process.argv[2]) : path.join(desktop, 'build');
@@ -13,16 +14,17 @@ const sdkVersion = JSON.parse(fs.readFileSync(path.join(modules, '@modelcontextp
 assert.equal(dcVersion, '0.2.52'); assert.equal(sdkVersion, '1.32.1');
 const { Client } = await import(pathToFileURL(path.join(modules, '@modelcontextprotocol/sdk/dist/esm/client/index.js')));
 const { StdioClientTransport } = await import(pathToFileURL(path.join(modules, '@modelcontextprotocol/sdk/dist/esm/client/stdio.js')));
-const node = path.join(resources, 'runtime/bin/node');
+const node = path.join(resources, 'runtime/bin', binaryName('node'));
 const entry = path.join(modules, '@wonderwhy-er/desktop-commander/dist/index.js');
 const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "gpt-bridge proxy's ")));
+if (windows) privateDirectory(root);
 const workspace = path.join(root, 'project'), ro = path.join(workspace, 'reference'), outside = path.join(root, 'outside');
 const state = path.join(root, 'state'), home = path.join(state, 'home');
 for (const dir of [workspace, ro, outside, path.join(home, '.claude-server-commander')]) fs.mkdirSync(dir, { recursive: true });
 const source = path.join(ro, 'source.txt'); fs.writeFileSync(source, 'permission-test-nonce');
 fs.writeFileSync(path.join(outside, 'outside.txt'), 'outside-secret');
-fs.symlinkSync(outside, path.join(workspace, 'escape'));
-const defaults = JSON.parse(fs.readFileSync(path.join(bridge, 'dc-defaults.json')));
+fs.symlinkSync(outside, path.join(workspace, 'escape'), windows ? 'junction' : 'dir');
+const defaults = { ...JSON.parse(fs.readFileSync(path.join(bridge, 'dc-defaults.json'))), ...(windows ? { defaultShell: 'powershell.exe' } : {}) };
 const config = path.join(home, '.claude-server-commander/config.json'), policyFile = path.join(state, 'policy.json');
 const sessions = path.join(state, 'sessions.json');
 fs.writeFileSync(config, JSON.stringify({ ...defaults, allowedDirectories: [workspace, ro] }), { mode: 0o600 });
@@ -35,7 +37,8 @@ async function run(allowCommands) {
     protectedPaths: [state, path.join(resources, 'runtime')] }), { mode: 0o600 });
   const transport = new StdioClientTransport({ command: node,
     args: [path.join(bridge, 'proxy.mjs'), entry, config, policyFile, sessions], cwd: workspace,
-    env: { HOME: home, PATH: `${path.dirname(node)}:${path.join(modules, '@vscode/ripgrep-darwin-arm64/bin')}:/usr/bin:/bin`,
+    env: { ...systemEnv(home), PATH: [path.dirname(node), path.join(modules,
+      `@vscode/ripgrep-${windows ? 'win32-x64' : 'darwin-arm64'}/bin`), systemEnv(home).PATH].join(path.delimiter),
       DESKTOP_COMMANDER_DISABLE_TELEMETRY: '1', MACBRIDGE_NO_BROWSER_DOWNLOAD: '1' }, stderr: 'pipe' });
   let stderr = ''; transport.stderr?.on('data', c => { stderr += c; });
   const client = new Client({ name: 'gpt-bridge-proxy-smoke', version: '0.10' });
@@ -51,7 +54,7 @@ async function run(allowCommands) {
     }
     assert(tools.every(t => !t._meta)); checks++;
     assert(tools.some(t => t.name === 'start_process')); checks++;
-    const info = await good('workspace_info'); assert(JSON.stringify(info).includes(allowCommands ? 'current Mac user' : 'disabled')); checks++;
+    const info = await good('workspace_info'); assert(JSON.stringify(info).includes(allowCommands ? `current ${windows ? 'Windows' : 'Mac'} user` : 'disabled')); checks++;
     const controlLock = path.join(state, 'control.lock');
     const lockedTarget = path.join(workspace, `lock-probe-${allowCommands}.txt`);
     fs.mkdirSync(controlLock);
@@ -115,17 +118,24 @@ async function run(allowCommands) {
       await good('list_searches');
       assert.equal(JSON.parse(fs.readFileSync(sessions)).activeSearchIDs.length, 0); checks++;
     } else {
-      const command = await good('start_process', { command: 'printf gpt-bridge-command-ok', timeout_ms: 1000, shell: '/bin/bash' });
+      const command = await good('start_process', { command: windows ? 'Write-Output gpt-bridge-command-ok' : 'printf gpt-bridge-command-ok',
+        timeout_ms: 1000, shell: windows ? 'powershell.exe' : '/bin/bash' });
       const text = JSON.stringify(command); assert(text.includes('gpt-bridge-command-ok')); checks++;
       const pid = command.content[0].text.match(/PID (\d+)/)?.[1]; assert(pid); checks++;
       await good('read_process_output', { pid: Number(pid), timeout_ms: 1000 });
       await denied('force_terminate', { pid: process.pid });
       await good('list_sessions');
       const quotedNode = `'${node.replaceAll("'", "'\\''")}'`;
-      const long = await good('start_process', { command: `exec ${quotedNode} -e 'setInterval(() => {}, 1000)'`, timeout_ms: 1000, shell: '/bin/bash' });
+      const long = await good('start_process', { command: windows ? `& '${node.replaceAll("'", "''")}' -e 'setInterval(() => {}, 1000)'`
+        : `exec ${quotedNode} -e 'setInterval(() => {}, 1000)'`, timeout_ms: 1000, shell: windows ? 'powershell.exe' : '/bin/bash' });
       const longPID = Number(long.content[0].text.match(/PID (\d+)/)?.[1]); assert(longPID > 0); checks++;
       assert(JSON.parse(fs.readFileSync(sessions)).activeSessionPIDs.includes(longPID)); checks++;
+      const commandChildren = windows ? [...snapshot().values()].filter(p => p.parent === longPID) : [];
       await good('force_terminate', { pid: longPID });
+      if (windows) {
+        const remaining = snapshot();
+        assert(commandChildren.length > 0 && commandChildren.every(p => remaining.get(p.pid)?.started !== p.started)); checks++;
+      }
       let finalOutput;
       for (let i = 0; i < 20; i++) {
         finalOutput = await good('read_process_output', { pid: longPID, timeout_ms: 1000, offset: -100, length: 100 });
@@ -143,7 +153,7 @@ async function run(allowCommands) {
     }
     const record = JSON.parse(fs.readFileSync(sessions));
     assert(record.proxyPID === transport.pid && record.dcPID > 0 && record.pendingToolCalls === 0); checks++;
-    assert.equal(fs.statSync(sessions).mode & 0o777, 0o600); checks++;
+    assertPrivateFile(sessions); checks++;
   } catch (error) { console.error(stderr.slice(-5000)); throw error; }
   finally { await client.close(); }
 }
@@ -153,4 +163,4 @@ try {
     inactivePathsDenied: true, commandsOffDenied: true, commandsOnExecuted: true, safeSearch: true,
     symlinkSearchEscapeDenied: true, cancelTracked: true, completedSearchesCleared: true, sessionRecord: true,
     controllerLockStopsOperations: true, unlockRestoresOperations: true, virtualNegativePIDTracked: true }));
-} finally { fs.rmSync(root, { recursive: true, force: true }); }
+} finally { fs.rmSync(root, { recursive: true, force: true, maxRetries: 30, retryDelay: 100 }); }

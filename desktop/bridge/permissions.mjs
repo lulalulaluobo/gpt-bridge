@@ -1,17 +1,27 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { windows, samePath, diskRoot, assertPrivateFile } from './platform.mjs';
 
 export class PermissionError extends Error {
   constructor(message) { super(message); this.name = 'PermissionError'; }
 }
 const deny = message => { throw new PermissionError(message); };
-export const within = (candidate, root) => candidate === root || candidate.startsWith(`${root}${path.sep}`);
+export const within = (candidate, root) => {
+  const a = windows ? candidate.toLowerCase() : candidate;
+  const b = windows ? root.toLowerCase() : root;
+  return a === b || a.startsWith(b.endsWith(path.sep) ? b : `${b}${path.sep}`);
+};
 
 function absolute(value) {
   if (typeof value !== 'string' || !path.isAbsolute(value) || /[\0\r\n]/.test(value) || /^\w+:\/\//.test(value)) {
     deny('An absolute local filesystem path is required.');
   }
-  return path.normalize(value);
+  const normalized = path.normalize(value);
+  if (windows && (!/^[A-Za-z]:\\/.test(normalized) || normalized.slice(2).includes(':') ||
+      normalized.slice(3).split('\\').some(part => /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(part) || /[. ]$/.test(part)))) {
+    deny('Select a local drive path without device names, alternate streams or ambiguous components.');
+  }
+  return normalized;
 }
 
 // Resolve the closest existing ancestor, not just the immediate parent. A new
@@ -23,7 +33,7 @@ export function canonicalPath(value) {
   for (;;) {
     try {
       fs.lstatSync(current);
-      return path.join(fs.realpathSync(current), ...suffix);
+      return path.join(fs.realpathSync.native(current), ...suffix);
     } catch (error) {
       if (error.code !== 'ENOENT') deny('Unable to safely resolve this filesystem path.');
       // lstat detects dangling symlinks, which realpath must never ignore.
@@ -38,26 +48,24 @@ export function canonicalPath(value) {
 }
 
 export function loadPolicy(file) {
-  const info = fs.lstatSync(file);
-  if (!info.isFile() || info.isSymbolicLink() || info.uid !== process.getuid() || (info.mode & 0o777) !== 0o600) {
-    deny('The permission policy must be an owner-only regular file (0600).');
-  }
+  try { assertPrivateFile(file); } catch { deny('The permission policy must be a private regular file owned by the current user.'); }
   const value = JSON.parse(fs.readFileSync(file, 'utf8'));
   if (value.schemaVersion !== 1 || typeof value.workspaceID !== 'string' || !value.workspaceID ||
       typeof value.allowCommands !== 'boolean' || !Array.isArray(value.grants) || !value.grants.length ||
       !Array.isArray(value.protectedPaths) || !value.protectedPaths.length) deny('Invalid permission policy.');
   const workspaceRoot = canonicalPath(value.workspaceRoot);
-  if (workspaceRoot === path.sep || !fs.statSync(workspaceRoot).isDirectory()) deny('Invalid workspace root.');
+  if (diskRoot(workspaceRoot) || !fs.statSync(workspaceRoot).isDirectory()) deny('Invalid workspace root.');
   const seen = new Set();
   const grants = value.grants.map(grant => {
     if (!['readOnly', 'readWrite'].includes(grant.access)) deny('Invalid directory permission.');
     const directory = canonicalPath(grant.path);
-    if (directory === path.sep || directory !== absolute(grant.path) || seen.has(directory) ||
+    const identity = windows ? directory.toLowerCase() : directory;
+    if (diskRoot(directory) || !samePath(directory, absolute(grant.path)) || seen.has(identity) ||
         !fs.statSync(directory).isDirectory()) deny('Access directories must be unique existing canonical directories.');
-    seen.add(directory);
+    seen.add(identity);
     return Object.freeze({ path: directory, access: grant.access });
   });
-  if (!grants.some(g => g.path === workspaceRoot)) deny('The workspace root must have an explicit directory permission.');
+  if (!grants.some(g => samePath(g.path, workspaceRoot))) deny('The workspace root must have an explicit directory permission.');
   const protectedPaths = value.protectedPaths.map(p => canonicalPath(p));
   if (protectedPaths.some(p => within(workspaceRoot, p))) deny('The workspace cannot be inside application-private files.');
   return Object.freeze({ schemaVersion: 1, workspaceID: value.workspaceID, workspaceRoot,
@@ -78,7 +86,7 @@ export class FilePermissions {
     const lexical = this.mostSpecific(requested), real = this.mostSpecific(resolved);
     if (!lexical || !real) deny('This path is outside the active workspace access directories.');
     for (const grant of [lexical, real]) {
-      if (canonicalPath(grant.path) !== grant.path) deny('An access directory changed; select it again in the app.');
+      if (!samePath(canonicalPath(grant.path), grant.path)) deny('An access directory changed; select it again in the app.');
       if (operation === 'write' && grant.access !== 'readWrite') deny('This directory is read-only.');
     }
     try {

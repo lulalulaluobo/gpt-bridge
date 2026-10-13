@@ -1,8 +1,14 @@
 # gpt-bridge
 
-把你的 Mac 连接到 ChatGPT：在网页中使用私有 MCP 插件，读取本地资料、写入授权目录，并按需执行本机命令。桌面应用负责隧道连接、工作区和目录权限；日常使用无需运行终端脚本。
+把你的 Mac 或 Windows 电脑连接到 ChatGPT：在网页中使用私有 MCP 插件，读取本地资料、写入授权目录，并按需执行本机命令。桌面应用负责隧道连接、工作区和目录权限；日常使用无需运行终端脚本。
 
-[下载 0.11](https://github.com/lulalulaluobo/gpt-bridge/releases/tag/v0.11) · [全部版本](https://github.com/lulalulaluobo/gpt-bridge/releases) · [桌面端说明](desktop/README.md)
+[下载 macOS 0.11](https://github.com/lulalulaluobo/gpt-bridge/releases/tag/v0.11) · [全部版本](https://github.com/lulalulaluobo/gpt-bridge/releases) · [macOS 说明](desktop/README.md) · [Windows 托盘版说明](windows/README.md)
+
+## Windows 托盘版
+
+新增 Windows 10 / 11 x64 原生桌面应用。图标常驻任务栏右侧托盘，关闭或最小化设置窗口后继续连接；双击图标打开设置，右键菜单可切换工作区、连接、断开和退出。支持共用目录的只读 / 读写权限、单独命令开关、登录启动及自动连接，Runtime key 使用当前 Windows 用户的 DPAPI 加密保存。
+
+在 Windows 上运行 `python windows/scripts/package.py`，生成包含全部运行依赖的 `windows/dist/gpt-bridge-0.11-windows-x64.zip`。完整解压后打开 `gpt-bridge.exe`，无需另装 Node.js。当前为未签名预览版，尚未发布 Windows Release 附件。[Windows 的使用、构建与验证](windows/README.md)
 
 ## 0.11 的功能
 

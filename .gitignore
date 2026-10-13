@@ -3,6 +3,7 @@
 !/.gitignore
 !/README.md
 !/desktop/
+!/windows/
 /desktop/*
 !/desktop/Package.swift
 !/desktop/README.md
@@ -19,3 +20,5 @@
 .DS_Store
 *.pyc
 *.tmp
+/windows/build/
+/windows/dist/
