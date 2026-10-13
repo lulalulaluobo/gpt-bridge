@@ -1,10 +1,10 @@
 # Computer Use 应用开发预览
 
-2026-10-13。用户要求先验证再开发；网页端到端已通过，原正式隧道曾恢复（PID4311，健康/就绪通过，activeTasks=0）。随后用户明确要求重新打包DMG并替换本机服务。新版已安装到 /Applications/gpt-bridge.app，旧应用已正常退出并停止旧服务；新应用PID28540已启动，但当前等待用户在本机允许钥匙串访问，服务尚未重新连接。未推送 GitHub、未发布 Release。
+2026-10-13。用户要求先验证再开发；网页端到端已通过，原正式隧道曾恢复（PID4311，健康/就绪通过，activeTasks=0）。随后用户明确要求重新打包DMG并替换本机服务。新版已安装到 /Applications/gpt-bridge.app，旧应用已正常退出并停止旧服务。用户已在本机允许钥匙串访问；随后核实新隧道PID31787，running/healthy/ready均true，工作区fingerprint保持一致。电脑控制available=true、enabled=false，等待用户选择演示应用并开启。未推送 GitHub、未发布 Release。
 
 安装包：desktop/dist/gpt-bridge-0.11-cu-preview-arm64.dmg；hdiutil verify通过。SHA256：84f9feca08f9dffa5d4eb099c9546b6663109a469c08c69647469ff74b134e0f。旧版回退备份：desktop/build/backups/gpt-bridge-before-cu-20261013.zip（ZIP校验通过），另保留.app.archived目录。构建副本已注销并归档，正常启动入口仍只有 /Applications/gpt-bridge.app。
 
-升级前connections.json摘要：eae91465b07a7066ec41c42af7d7ae50a530983c435e37b861d20b6f9b10b1dc；不覆盖用户数据。收到用户“已允许”后先查status/健康/就绪，再查看应用“电脑控制”的系统权限。不要绕过macOS密码提示。
+升级前后connections.json摘要均为eae91465b07a7066ec41c42af7d7ae50a530983c435e37b861d20b6f9b10b1dc，用户配置未变。原生界面自动检查返回native pipe closed，尚未通过应用UI确认系统屏幕权限；用户可在电脑控制中检查权限。不要把available=true当作系统权限均已授予。
 
 用户演示窗口已打开：gpt-bridge CU Test，PID29454；记录目录 experiments/computer-use/runtime/app-demo-b3a209b8-5159-49c0-bb5e-f565cf1d720c。演示仅等用户网页测试，未替用户输入或点击。任务提示词见 reports/computer-use-task-prompt.md。用户需选择该应用并开启15分钟，再刷新网页工具。
 
