@@ -34,8 +34,8 @@ const child = new StdioClientTransport({ command: process.execPath,
   args: [path.join(path.dirname(fileURLToPath(import.meta.url)), 'dc-entry.mjs'), entry, config, policyFile],
   cwd: policy.workspaceRoot, env: { ...process.env }, stderr: 'pipe' });
 child.stderr?.on('data', chunk => process.stderr.write(chunk));
-const client = new Client({ name: 'gpt-bridge-permission-proxy', version: '0.10' });
-const server = new Server({ name: 'gpt-bridge', version: '0.10' }, { capabilities: { tools: {} },
+const client = new Client({ name: 'gpt-bridge-permission-proxy', version: '0.11' });
+const server = new Server({ name: 'gpt-bridge', version: '0.11' }, { capabilities: { tools: {} },
   instructions: 'Call workspace_info before working. Only the selected local workspace grants apply. File tools enforce directory read-only/read-write permissions. Commands, when enabled, run with the Mac user privileges and are not isolated by directory permissions.' });
 async function refreshSessions() {
   if (refreshPending || stopping) return;

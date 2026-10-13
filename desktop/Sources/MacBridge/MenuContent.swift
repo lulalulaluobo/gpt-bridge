@@ -21,7 +21,8 @@ struct MenuContent: View {
                 Text("切换工作区").font(.caption).foregroundStyle(.secondary)
                 ForEach(connection.workspaces) { workspace in
                     Button {
-                        pendingWorkspace = workspace
+                        pendingWorkspace = AppConfiguration.applying(model.configuration.sharedDirectories, to: connection)
+                            .workspaces.first { $0.id == workspace.id }
                     } label: {
                         Label(workspace.name,
                               systemImage: model.status.activeWorkspaceID == workspace.id && model.status.running ? "checkmark.circle.fill" : "folder")

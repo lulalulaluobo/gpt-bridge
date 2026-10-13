@@ -1,14 +1,14 @@
-# gpt-bridge 0.10 桌面端
+# gpt-bridge 0.11 桌面端
 
 Apple Silicon，macOS 14 或更新版本。菜单栏应用把私有 OpenAI 隧道与本地 MCP 文件、命令能力连接起来。
 
-[下载 0.10](https://github.com/lulalulaluobo/gpt-bridge/releases/tag/v0.10) · [完整配置教程](../README.md)
+[下载 0.11](https://github.com/lulalulaluobo/gpt-bridge/releases/tag/v0.11) · [完整配置教程](../README.md)
 
 ## 安装与日常使用
 
-1. 打开 `gpt-bridge-0.10-arm64.dmg`，将 `gpt-bridge.app` 拖入 Applications，推出 DMG，再从 Applications 打开应用。
+1. 打开 `gpt-bridge-0.11-arm64.dmg`，将 `gpt-bridge.app` 拖入 Applications，推出 DMG，再从 Applications 打开应用。
 2. 创建或选择私有隧道，填写 Tunnel ID 与同一组织中具备 Read + Use 权限的 Runtime API key。密钥只保存到本机钥匙串；已保存时留空保留。
-3. 用 macOS 文件夹选择器选择主目录、添加访问目录，名称自动取路径最后一个文件夹名，逐目录设置只读或读写。保存后连接。
+3. 用 macOS 文件夹选择器选择主目录。在侧栏“共用目录”添加文件夹，统一设置只读或读写；所有工作区和连接资料共用这份列表。名称自动取路径最后一个文件夹名。点击“应用并连接”。
 4. 在 ChatGPT 添加私有 MCP 插件，连接方式选择同一隧道及“无需身份验证”，保留操作确认。私有隧道的组织和工作区权限继续生效。
 5. 在对话中用 `@` 选中插件，实际读取一个授权目录里的测试文件。
 
@@ -18,11 +18,15 @@ Apple Silicon，macOS 14 或更新版本。菜单栏应用把私有 OpenAI 隧�
 
 关闭设置窗口后菜单栏和连接继续运行。可在设置中选择登录 Mac 时启动、启动应用后自动连接；主动断开后不会立即自动重连。休眠、断网和关机期间远程调用可能不可用，运行中的任务不能跨关机继续。
 
-0.10 不开放 PDF 写入工具；`read_file` 的 PDF 读取依底层能力提供。核心连接与文件、命令功能无需 Chrome，不会自动下载浏览器。
+本版不开放 PDF 写入工具；`read_file` 的 PDF 读取依底层能力提供。核心连接与文件、命令功能无需 Chrome，不会自动下载浏览器。
+
+工作区页面只管理主目录和命令开关；共用目录独立管理，底部固定保存与应用按钮。运行细节位于设置中的“连接诊断”。保存不会重启当前连接，应用才更新权限。未选中的主目录不会自动加入授权，但若它属于共用目录范围，仍按共用权限访问。嵌套共用目录按最具体路径匹配；工作区根目录继承适用共用规则中的只读约束。
 
 ## 从 MacBridge 升级与卸载
 
 升级前先断开并退出旧应用。安装 gpt-bridge 后打开，已有配置、密钥和工作目录保留，单目录配置迁移为一个本地工作区。确认新版本正常后移除旧 `MacBridge.app`，保留一个日常应用入口。已有 ChatGPT 插件可以继续使用，升级新增工具后在网页设置刷新工具。
+
+从 0.10 升级时，所有工作区的附加目录合并为全局共用目录；重复路径只留一条，权限冲突保留只读。配置升级为 schema 2，首次写入前自动备份 `connections-v1-backup.json`。回退旧应用需要同时恢复这份旧配置备份，勿让旧版本直接读写新配置。
 
 - 配置、状态、专用执行层 HOME：`~/Library/Application Support/MacBridge/`
 - 密钥：登录钥匙串，服务 `local.macbridge.desktop.runtime`。
@@ -54,7 +58,7 @@ python3 scripts/package.py --node /path/to/node-v24.9.0/bin/node \
 
 `--runtime-source` 只提供 `vendor/tunnel-client-v0.0.16/` 中的二进制及许可证；npm package 和 lockfile 始终从仓库 `runtime/` 读取。Node 安装需保留同版本 npm 与 LICENSE，供构建和打包使用。
 
-输出 `dist/gpt-bridge-0.10-arm64.dmg`。DMG 构建默认移除临时应用目录；`--keep-app` 留下 `dist/gpt-bridge.app` 供本机测试安装。安装卷暂存目录始终清理，避免重复应用入口。
+输出 `dist/gpt-bridge-0.11-arm64.dmg`。DMG 构建默认移除临时应用目录；`--keep-app` 留下 `dist/gpt-bridge.app` 供本机测试安装。安装卷暂存目录始终清理，避免重复应用入口。
 
 运行依赖额外固定 `sharp 0.35.5`、`uuid 11.1.1`，仅对 `md-to-pdf` 替换 `chokidar 4.0.3`，保持 Desktop Commander 0.2.52。图像转换、ExcelJS 工作簿读写和模块基本兼容已验证。
 

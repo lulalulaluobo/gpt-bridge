@@ -6,6 +6,7 @@ final class AppModel {
     var configuration = AppConfiguration()
     var status = RuntimeStatus()
     var draft = Connection()
+    var sharedDirectories: [AccessDirectory] = []
     var secret = ""
     var message = "填写连接信息，或导入这台 Mac 的已有部署。"
     var error: String?
@@ -32,9 +33,21 @@ final class AppModel {
             }
         }
     }
-    var hasUnsavedChanges: Bool { draft != connections.first { $0.id == draft.id } || !secret.isEmpty }
+    var hasUnsavedChanges: Bool {
+        draft != connections.first { $0.id == draft.id } || !secret.isEmpty || sharedDirectories != configuration.sharedDirectories
+    }
+    var effectiveDraftWorkspace: LocalWorkspace {
+        AppConfiguration.applying(sharedDirectories, to: draft).selectedWorkspace ?? draftWorkspace
+    }
+    var rootReadOnlyByShared: Bool {
+        var connection = draft
+        if let index = connection.workspaces.firstIndex(where: { $0.id == draftWorkspace.id }) {
+            connection.workspaces[index].rootAccess = .readWrite
+        }
+        return AppConfiguration.applying(sharedDirectories, to: connection).selectedWorkspace?.rootAccess == .readOnly
+    }
     var workspaceIsApplied: Bool {
-        status.running && status.activeID == draft.id && status.activeWorkspace == draft.selectedWorkspace
+        status.running && status.activeID == draft.id && status.activeWorkspace == effectiveDraftWorkspace
     }
     var activeWorkspaceName: String? {
         status.activeWorkspace?.name ?? status.activeWorkspaceRoot.map { URL(filePath: $0).lastPathComponent }
@@ -46,6 +59,7 @@ final class AppModel {
         self.runtime = runtime ?? RuntimeClient(root: store.root, resources: resources ?? Bundle.main.resourceURL ?? Bundle.main.bundleURL)
         do {
             configuration = try store.load()
+            sharedDirectories = configuration.sharedDirectories
             configurationLoaded = true
             if let selected { draft = selected }
         } catch { self.error = "读取配置失败，原文件已保留：\(error.localizedDescription)" }
@@ -58,7 +72,7 @@ final class AppModel {
         await refresh()
         wantsConnection = isConnected && !configuration.manuallyDisconnected
         if ProcessInfo.processInfo.arguments.contains("--resume-after-upgrade"), let connection = selected {
-            await startConnection(connection, preservingStartupPreferences: true)
+            await startConnection(AppConfiguration.applying(configuration.sharedDirectories, to: connection), preservingStartupPreferences: true)
         } else if configuration.connectOnLaunch && !configuration.manuallyDisconnected && selected != nil {
             await connect()
         }
@@ -116,11 +130,12 @@ final class AppModel {
         if !secret.isEmpty { try credentials.save(secret, id: connection.id) }
         else { _ = try credentials.read(connection.id) }
         var updated = configuration
+        updated.sharedDirectories = try AppConfiguration.normalizedDirectories(sharedDirectories)
         if let index = updated.connections.firstIndex(where: { $0.id == connection.id }) { updated.connections[index] = connection }
         else { updated.connections.append(connection) }
         updated.selectedID = connection.id
         try store.save(updated)
-        configuration = updated; draft = connection; secret = ""
+        configuration = updated; draft = connection; secret = ""; sharedDirectories = updated.sharedDirectories
         message = "设置已保存。点击“应用并连接”后才更新当前生效的工作区与权限。"
         return connection
     }
@@ -133,7 +148,9 @@ final class AppModel {
     }
 
     func connect(automatic: Bool = false) async {
-        guard let connection = automatic ? appliedConnection ?? selected : selected else { return }
+        guard let saved = selected else { return }
+        let connection = automatic ? appliedConnection ?? AppConfiguration.applying(configuration.sharedDirectories, to: saved)
+            : AppConfiguration.applying(configuration.sharedDirectories, to: saved)
         await startConnection(connection, automatic: automatic)
     }
 
@@ -222,17 +239,21 @@ final class AppModel {
     }
 
     func addAccessDirectory() {
-        guard let url = selectFolder(title: "添加访问目录") else { return }
-        draftWorkspace.directories.append(AccessDirectory(path: url.path))
+        guard let url = selectFolder(title: "添加共用目录") else { return }
+        let path = url.resolvingSymlinksInPath().path
+        guard !sharedDirectories.contains(where: { $0.path == path }) else { error = "此目录已添加。"; return }
+        sharedDirectories.append(AccessDirectory(path: path))
     }
 
     func replaceAccessDirectory(_ id: String) {
-        guard let index = draftWorkspace.directories.firstIndex(where: { $0.id == id }),
-              let url = selectFolder(title: "更换访问目录", current: draftWorkspace.directories[index].path) else { return }
-        draftWorkspace.directories[index].path = url.path
+        guard let index = sharedDirectories.firstIndex(where: { $0.id == id }),
+              let url = selectFolder(title: "更换共用目录", current: sharedDirectories[index].path) else { return }
+        let path = url.resolvingSymlinksInPath().path
+        guard !sharedDirectories.contains(where: { $0.id != id && $0.path == path }) else { error = "此目录已添加。"; return }
+        sharedDirectories[index].path = path
     }
 
-    func removeAccessDirectory(_ id: String) { draftWorkspace.directories.removeAll { $0.id == id } }
+    func removeAccessDirectory(_ id: String) { sharedDirectories.removeAll { $0.id == id } }
 
     private func selectFolder(title: String, current: String? = nil) -> URL? {
         let panel = NSOpenPanel()
@@ -246,7 +267,7 @@ final class AppModel {
     func activateSavedWorkspace(_ id: String) async {
         guard !busy, var connection = selected, connection.workspaces.contains(where: { $0.id == id }) else { return }
         connection.selectedWorkspaceID = id
-        await startConnection(connection)
+        await startConnection(AppConfiguration.applying(configuration.sharedDirectories, to: connection))
         if error == nil, draft.id == connection.id { draft.selectedWorkspaceID = id }
     }
 

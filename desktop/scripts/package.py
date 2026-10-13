@@ -99,8 +99,8 @@ for p in sorted((dc/'node_modules').rglob('package.json')):
     except (ValueError, OSError):
         pass
 (licenses/'dependencies.json').write_text(json.dumps(dependencies, indent=2))
-(licenses/'NOTICE.txt').write_text('gpt-bridge bundles Node.js, OpenAI tunnel-client 0.0.16 and Desktop Commander 0.2.52.\nDependency license files remain alongside their packages.\nDesktop Commander downstream change: disable automatic Chrome acquisition when MACBRIDGE_NO_BROWSER_DOWNLOAD=1. PDF writing tools are not exposed by gpt-bridge 0.10.\n')
-manifest = {'product': 'gpt-bridge', 'architecture': 'arm64', 'appVersion': '0.10', 'dc': '0.2.52',
+(licenses/'NOTICE.txt').write_text('gpt-bridge bundles Node.js, OpenAI tunnel-client 0.0.16 and Desktop Commander 0.2.52.\nDependency license files remain alongside their packages.\nDesktop Commander downstream change: disable automatic Chrome acquisition when MACBRIDGE_NO_BROWSER_DOWNLOAD=1. PDF writing tools are not exposed by gpt-bridge 0.11.\n')
+manifest = {'product': 'gpt-bridge', 'architecture': 'arm64', 'appVersion': '0.11', 'dc': '0.2.52',
             'node': node_version,
             'lockSHA256': stamp,
             'nodeSHA256': hashlib.sha256(args.node.read_bytes()).hexdigest(),
@@ -118,7 +118,7 @@ for f in resources.rglob('*'):
 subprocess.run(['codesign', '--force', '--sign', '-', str(app)], check=True)
 subprocess.run(['codesign', '--verify', '--deep', '--strict', str(app)], check=True)
 if args.dmg:
-    image = out/'gpt-bridge-0.10-arm64.dmg'
+    image = out/'gpt-bridge-0.11-arm64.dmg'
     dmgroot = stage/'dmg-root'
     if dmgroot.exists(): shutil.rmtree(dmgroot)
     dmgroot.mkdir()

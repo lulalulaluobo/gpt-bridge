@@ -10,7 +10,7 @@ struct WorkspaceActivationConfirmation: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             Text("应用 \(workspace.name)？").font(.title2.bold())
-            Text("以下目录将成为当前工作区的文件访问范围；其他工作区的目录不参与授权。")
+            Text("将应用主目录与共用目录权限。")
                 .foregroundStyle(.secondary)
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {

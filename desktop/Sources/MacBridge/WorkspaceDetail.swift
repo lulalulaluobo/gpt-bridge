@@ -3,74 +3,54 @@ import SwiftUI
 struct WorkspaceDetail: View {
     @Bindable var model: AppModel
     @State private var confirmingRemoval = false
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(model.draftWorkspace.name).font(.title.bold())
-                    Label(model.workspaceIsApplied ? "当前生效" : "待应用", systemImage: model.workspaceIsApplied ? "checkmark.circle.fill" : "clock")
-                        .foregroundStyle(model.workspaceIsApplied ? .green : .secondary)
-                }
+        VStack(alignment: .leading, spacing: 24) {
+            HStack {
+                Text(model.draftWorkspace.name).font(.title.bold()).lineLimit(2)
                 Spacer()
-                Button("移除工作区", systemImage: "trash", action: confirmRemoval)
-                    .disabled(model.draft.workspaces.count < 2)
+                Menu {
+                    Button("在 Finder 中显示", systemImage: "folder") {
+                        NSWorkspace.shared.open(URL(filePath: model.draftWorkspace.root))
+                    }
+                    Button("移除工作区", systemImage: "trash", role: .destructive) { confirmingRemoval = true }
+                        .disabled(model.draft.workspaces.count < 2)
+                } label: { Image(systemName: "ellipsis.circle").font(.title3) }
+                .menuStyle(.borderlessButton).fixedSize().accessibilityLabel("工作区操作")
             }
-
-            GroupBox("主工作目录") {
-                VStack(alignment: .leading, spacing: 14) {
-                    HStack(alignment: .top) {
-                        Label(model.draftWorkspace.root, systemImage: "folder")
-                            .foregroundStyle(.secondary).textSelection(.enabled)
-                        Spacer()
-                        Button("更换目录…", action: model.chooseFolder)
+            VStack(alignment: .leading, spacing: 20) {
+                HStack(spacing: 16) {
+                    Image(systemName: "folder.fill").font(.title).foregroundStyle(.blue)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("主目录").font(.headline)
+                        Text(model.draftWorkspace.root).foregroundStyle(.secondary)
+                            .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                     }
-                    DirectoryPermissionPicker(access: $model.draftWorkspace.rootAccess)
-                    Text("文件夹名称自动作为工作区名称；命令默认在主目录中启动。")
-                        .font(.caption).foregroundStyle(.secondary)
-                }.padding(10)
-            }
-
-            GroupBox {
-                VStack(alignment: .leading, spacing: 14) {
-                    if model.draftWorkspace.directories.isEmpty {
-                        Text("添加资料库、素材或输出文件夹，让当前工作区访问更多目录。")
-                            .foregroundStyle(.secondary).padding(.vertical, 6)
+                    Spacer(minLength: 0)
+                    Button("选择文件夹…", action: model.chooseFolder)
+                }
+                Divider()
+                HStack {
+                    Text("文件权限")
+                    Spacer()
+                    if model.rootReadOnlyByShared {
+                        Label("只读 · 共用权限", systemImage: "lock").foregroundStyle(.secondary)
+                    } else {
+                        DirectoryPermissionPicker(access: $model.draftWorkspace.rootAccess).labelsHidden().frame(width: 160)
                     }
-                    ForEach($model.draftWorkspace.directories) { $directory in
-                        AccessDirectoryRow(directory: $directory,
-                                           replace: { model.replaceAccessDirectory(directory.id) },
-                                           remove: { model.removeAccessDirectory(directory.id) })
-                    }
-                    Button("添加访问目录…", systemImage: "plus", action: model.addAccessDirectory)
-                    Text("新增目录默认只读。目录名称来自路径；重叠目录按更具体的路径匹配权限。")
-                        .font(.caption).foregroundStyle(.secondary)
-                }.padding(10)
-            } label: { Text("附加访问目录") }
-
-            GroupBox("命令执行") {
-                VStack(alignment: .leading, spacing: 12) {
-                    Toggle("允许当前工作区执行命令", isOn: $model.draftWorkspace.allowCommands)
-                    Text(model.draftWorkspace.allowCommands
-                         ? "命令以当前 Mac 用户权限运行，可访问目录授权以外的文件。只读/读写规则约束文件工具，不约束命令。"
-                         : "命令执行已关闭。仍可使用当前工作区授权的文件读取、搜索与写入工具。")
-                        .font(.caption).foregroundStyle(.secondary)
-                    if let tasks = model.status.activeTasks, tasks > 0 {
-                        Label("有 \(tasks) 个活动任务。完成或取消后才能切换工作区。", systemImage: "hourglass")
-                            .foregroundStyle(.orange)
-                    }
-                    Button("检查活动任务", systemImage: "arrow.clockwise", action: checkTasks)
-                        .disabled(!model.status.running)
-                }.padding(10)
-            }
-
-            WorkspaceActions(model: model)
+                }
+            }.padding(20).background(.background, in: .rect(cornerRadius: 12))
+            VStack(alignment: .leading, spacing: 16) {
+                Toggle("允许执行命令", isOn: $model.draftWorkspace.allowCommands).toggleStyle(.switch)
+                if model.draftWorkspace.allowCommands {
+                    Label("命令可访问授权目录以外的文件。", systemImage: "exclamationmark.shield").foregroundStyle(.secondary)
+                }
+                if let tasks = model.status.activeTasks, tasks > 0 {
+                    Label("\(tasks) 个任务运行中", systemImage: "hourglass").foregroundStyle(.orange)
+                }
+            }.padding(20).background(.background, in: .rect(cornerRadius: 12))
         }.disabled(model.busy)
-        .confirmationDialog("从连接资料移除此工作区？文件夹和文件会保留。", isPresented: $confirmingRemoval) {
+        .confirmationDialog("移除此工作区？文件夹和文件会保留。", isPresented: $confirmingRemoval) {
             Button("移除工作区", role: .destructive, action: model.removeWorkspace)
         }
     }
-
-    private func confirmRemoval() { confirmingRemoval = true }
-    private func checkTasks() { Task { await model.refreshTasks() } }
 }

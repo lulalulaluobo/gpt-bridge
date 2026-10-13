@@ -4,6 +4,40 @@ import Security
 @testable import MacBridge
 
 struct ModelTests {
+    @Test @MainActor func sharedPermissionChangesFollowEveryWorkspaceAndRemainDraftUntilApplied() async throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        let model = AppModel(store: ConfigurationStore(root: root), monitor: false, runtime: MockRuntime())
+        let id = model.draft.id
+        defer {
+            try? FileManager.default.removeItem(at: root)
+            SecItemDelete([kSecClass as String: kSecClassGenericPassword,
+                           kSecAttrService as String: "local.macbridge.desktop.runtime", kSecAttrAccount as String: id] as CFDictionary)
+        }
+        model.draft.tunnelID = "tunnel_global"
+        model.secret = "synthetic-shared-test"
+        let second = LocalWorkspace(root: "/tmp/second")
+        model.draft.workspaces.append(second)
+        model.sharedDirectories = [AccessDirectory(path: "/tmp/shared-ro", access: .readOnly)]
+        await model.saveAndConnect()
+        #expect(model.status.activeWorkspace?.directories.count == 1)
+        await model.activateSavedWorkspace(second.id)
+        #expect(model.status.activeWorkspaceID == second.id)
+        #expect(model.status.activeWorkspace?.directories.first?.access == .readOnly)
+        model.sharedDirectories[0].access = .readWrite
+        #expect(!model.workspaceIsApplied)
+        #expect(model.status.activeWorkspace?.directories.first?.access == .readOnly)
+        await model.saveAndConnect()
+        #expect(model.status.activeWorkspace?.directories.first?.access == .readWrite)
+        model.sharedDirectories = []
+        _ = try model.saveDraft()
+        #expect(model.status.activeWorkspace?.directories.count == 1)
+        let firstID = try #require(model.selected?.workspaces.first?.id)
+        await model.activateSavedWorkspace(firstID)
+        #expect(model.status.activeWorkspace?.directories.isEmpty == true)
+        let restored = AppModel(store: ConfigurationStore(root: root), monitor: false, runtime: MockRuntime())
+        #expect(restored.sharedDirectories.isEmpty)
+        #expect(restored.draft.workspaces.allSatisfy { $0.directories.isEmpty })
+    }
     @Test @MainActor func savingWorkspaceDoesNotApplyOrRestartRuntime() async throws {
         let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
         let runtime = MockRuntime()
@@ -22,7 +56,7 @@ struct ModelTests {
         #expect(model.error == nil)
         let originallyApplied = model.status.activeWorkspace
         #expect(model.workspaceIsApplied)
-        model.draftWorkspace.directories.append(AccessDirectory(path: "/tmp/reference", access: .readOnly))
+        model.sharedDirectories.append(AccessDirectory(path: "/tmp/reference", access: .readOnly))
         _ = try model.saveDraft()
         #expect(model.status.activeWorkspace == originallyApplied)
         #expect(!model.workspaceIsApplied)

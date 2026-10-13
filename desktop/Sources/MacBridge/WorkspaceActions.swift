@@ -4,23 +4,20 @@ struct WorkspaceActions: View {
     @Bindable var model: AppModel
     @State private var showingConfirmation = false
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(model.hasUnsavedChanges ? "有未保存的修改。保存不会影响当前正在使用的工作区。" : "设置已保存；应用后才改变当前工作区与访问权限。")
-                .font(.caption).foregroundStyle(.secondary)
-            HStack {
-                Button("保存设置", action: model.save)
-                Button("应用并连接", action: confirm).buttonStyle(.borderedProminent)
-                Spacer()
-                Button("断开连接", action: disconnect).disabled(!model.status.running)
+        HStack(spacing: 12) {
+            Text(model.hasUnsavedChanges ? "未保存" : model.workspaceIsApplied ? "已应用" : "待应用")
+                .foregroundStyle(.secondary)
+            Spacer()
+            Button("保存", action: model.save).disabled(!model.hasUnsavedChanges)
+            Button(model.workspaceIsApplied ? "应用修改" : "应用并连接") { showingConfirmation = true }
+                .buttonStyle(.borderedProminent).disabled(model.workspaceIsApplied && !model.hasUnsavedChanges)
+        }.disabled(model.busy)
+        .sheet(isPresented: $showingConfirmation) {
+            WorkspaceActivationConfirmation(workspace: model.effectiveDraftWorkspace,
+                                            hasUnsavedChanges: model.hasUnsavedChanges,
+                                            activeTasks: model.status.activeTasks) {
+                Task { await model.saveAndConnect() }
             }
         }
-        .sheet(isPresented: $showingConfirmation) {
-            WorkspaceActivationConfirmation(workspace: model.draftWorkspace,
-                                            hasUnsavedChanges: model.hasUnsavedChanges,
-                                            activeTasks: model.status.activeTasks, apply: apply)
-        }
     }
-    private func confirm() { showingConfirmation = true }
-    private func apply() { Task { await model.saveAndConnect() } }
-    private func disconnect() { Task { await model.disconnect() } }
 }

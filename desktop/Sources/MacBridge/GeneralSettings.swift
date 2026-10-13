@@ -15,9 +15,14 @@ struct GeneralSettings: View {
                 if model.loginNeedsApproval {
                     Button("在系统设置中允许登录项") { SMAppService.openSystemSettingsLoginItems() }
                 }
-                Text("关闭此窗口后菜单栏与连接保持运行；主动断开后不会自动重连。电脑需保持开机和联网。")
-                    .font(.caption).foregroundStyle(.secondary)
-                Button("导出诊断状态…", systemImage: "square.and.arrow.up", action: model.exportDiagnostics)
+                DisclosureGroup("连接诊断") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        LabeledContent("进程", value: model.status.running ? "运行中" : "已停止")
+                        LabeledContent("健康检查", value: model.status.healthy ? "通过" : "未通过")
+                        LabeledContent("隧道就绪", value: model.status.ready ? "通过" : "未通过")
+                        Button("导出诊断状态…", systemImage: "square.and.arrow.up", action: model.exportDiagnostics)
+                    }.padding(.top, 12)
+                }
             }.padding(10).disabled(model.busy)
         }
         .onAppear { connectOnLaunch = model.configuration.connectOnLaunch; loginEnabled = model.loginEnabled }
