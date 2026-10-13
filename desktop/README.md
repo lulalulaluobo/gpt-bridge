@@ -39,6 +39,14 @@ Apple Silicon，macOS 14 或更新版本。菜单栏应用把私有 OpenAI 隧�
 
 ## 构建与测试
 
+源码现含 **Computer Use 开发预览**，尚未更新已发布的 0.11 Release。macOS 15+ 可在“连接与设置 → 电脑控制”选择已打开的应用、检查屏幕录制和辅助功能权限、开启 15 分钟授权。菜单栏及设置均可立即停止；停止不会撤销已派发的操作。只开放截图、按观察结果定位元素并点击、输入；尚无任意坐标、拖拽或全桌面控制。隧道重启会关闭授权。macOS 14 仍可使用原文件与命令功能；Windows 暂不开放电脑控制。
+
+新构建内置校验过的 Peekaboo 4.9.2 CLI，无需额外安装 Peekaboo DMG。更新后的应用签名可能需要重新授予系统权限；旧 CLI 预检通过不能替代应用安装后的权限验收。
+
+工具协作：文件内容优先文件工具，批处理优先已启用的命令，界面操作才使用电脑控制。模型拆解并调度，本机代理检查权限。权限拒绝不能通过换工具绕过。一次操作后重新观察，不能自动重试不确定的点击或输入。此实现通过自定义 MCP 工具接入，未调用 OpenAI API 内置 `computer` 工具。[官方定义](https://developers.openai.com/api/docs/guides/tools-computer-use)
+
+补充验证：`node scripts/computer-use-test.mjs` 检查关闭、目标身份、过期观察、防重复执行、撤销与到期；`scripts/computer-use-live.mjs <Resources目录> <专用测试窗口二进制>` 验证真实后端和专用窗口，不占用正式隧道。
+
 在 `desktop` 目录运行：
 
 ```bash

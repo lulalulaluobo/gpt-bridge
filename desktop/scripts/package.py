@@ -7,6 +7,8 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import tarfile
+import re
 
 project = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser()
@@ -15,7 +17,11 @@ parser.add_argument('--runtime-source', type=Path, default=project/'build/runtim
                     help='Directory containing vendor/tunnel-client-v0.0.16; never read user credentials.')
 parser.add_argument('--dmg', action='store_true')
 parser.add_argument('--keep-app', action='store_true', help='Keep the generated app after a DMG build for local installation.')
+parser.add_argument('--computer-use-archive', type=Path, default=project/'build/runtime-input/downloads/peekaboo-macos-arm64.tar.gz')
+parser.add_argument('--variant', default='', help='Optional local preview label, e.g. cu-preview; keeps released DMGs intact.')
 args = parser.parse_args()
+if args.variant and not re.fullmatch(r'[a-z0-9-]+', args.variant):
+    parser.error('Variant must contain lowercase letters, digits and hyphens only.')
 stage = project/'build'
 runtime = stage/'runtime'
 runtime.mkdir(parents=True, exist_ok=True)
@@ -32,6 +38,20 @@ if node_version != 'v24.9.0':
     parser.error('This release requires Node v24.9.0.')
 shutil.copy2(args.node, runtime/'bin/node')
 shutil.copy2(tunnel, runtime/'bin/tunnel-client')
+archive = args.computer_use_archive
+if not archive.is_file() or hashlib.sha256(archive.read_bytes()).hexdigest() != 'd0679fdccab7295261add8be4880a7ba0f87a8e6e1aa0fec1d21c6c98c79f448':
+    parser.error('Peekaboo 4.9.2 verified archive missing. Run scripts/bootstrap-runtime.py first.')
+# Extract only the three required regular files from the pinned archive.
+peekaboo = runtime/'peekaboo'
+peekaboo.mkdir(exist_ok=True)
+with tarfile.open(archive, 'r:gz') as bundle:
+    for name in ('peekaboo', 'libswiftCompatibilitySpan.dylib', 'LICENSE'):
+        member = bundle.getmember('peekaboo-macos-arm64/' + name)
+        if not member.isfile():
+            raise ValueError('Unexpected Peekaboo archive member')
+        with bundle.extractfile(member) as src, (peekaboo/name).open('wb') as dst:
+            shutil.copyfileobj(src, dst)
+        (peekaboo/name).chmod(0o755 if name == 'peekaboo' else 0o644)
 dc = runtime/'dc'
 dc.mkdir(exist_ok=True)
 for name in ('package.json', 'package-lock.json'):
@@ -85,6 +105,7 @@ subprocess.run(['swift', str(project/'scripts/icon.swift'), str(iconset)], check
 subprocess.run(['iconutil', '-c', 'icns', str(iconset), '-o', str(resources/'AppIcon.icns')], check=True)
 licenses = resources/'Licenses'
 licenses.mkdir()
+shutil.copy2(peekaboo/'LICENSE', licenses/'Peekaboo-LICENSE.txt')
 node_license = args.node.parent.parent/'LICENSE'
 shutil.copy2(node_license, licenses/'Node-LICENSE.txt')
 for f in tunnel.parent.iterdir():
@@ -101,6 +122,8 @@ for p in sorted((dc/'node_modules').rglob('package.json')):
 (licenses/'dependencies.json').write_text(json.dumps(dependencies, indent=2))
 (licenses/'NOTICE.txt').write_text('gpt-bridge bundles Node.js, OpenAI tunnel-client 0.0.16 and Desktop Commander 0.2.52.\nDependency license files remain alongside their packages.\nDesktop Commander downstream change: disable automatic Chrome acquisition when MACBRIDGE_NO_BROWSER_DOWNLOAD=1. PDF writing tools are not exposed by gpt-bridge 0.11.\n')
 manifest = {'product': 'gpt-bridge', 'architecture': 'arm64', 'appVersion': '0.11', 'dc': '0.2.52',
+            'variant': args.variant or None,
+            'computerUse': {'backend': 'Peekaboo 4.9.2', 'minimumMacOS': '15', 'defaultEnabled': False},
             'node': node_version,
             'lockSHA256': stamp,
             'nodeSHA256': hashlib.sha256(args.node.read_bytes()).hexdigest(),
@@ -118,7 +141,7 @@ for f in resources.rglob('*'):
 subprocess.run(['codesign', '--force', '--sign', '-', str(app)], check=True)
 subprocess.run(['codesign', '--verify', '--deep', '--strict', str(app)], check=True)
 if args.dmg:
-    image = out/'gpt-bridge-0.11-arm64.dmg'
+    image = out/('gpt-bridge-0.11' + ('-' + args.variant if args.variant else '') + '-arm64.dmg')
     dmgroot = stage/'dmg-root'
     if dmgroot.exists(): shutil.rmtree(dmgroot)
     dmgroot.mkdir()
