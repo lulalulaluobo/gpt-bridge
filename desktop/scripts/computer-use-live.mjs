@@ -33,7 +33,7 @@ const call = (name, args = {}) => client.callTool({ name, arguments: args }, und
 const control = (action, payload) => JSON.parse(execFileSync(node, [path.join(resources, 'bridge/computer-control.mjs'), action, state],
   { env, input: payload ? JSON.stringify(payload) : '', encoding: 'utf8', timeout: 20000 }));
 async function observe() {
-  const r = await call('computer_observe');
+  const r = await call('computer_observe', { app: `PID:${gui.pid}` });
   assert(!r.isError, JSON.stringify(r)); assert(r.content.some(c => c.type === 'image'));
   return JSON.parse(r.content[0].text);
 }

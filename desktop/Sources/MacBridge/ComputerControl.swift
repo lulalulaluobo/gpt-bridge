@@ -1,4 +1,6 @@
 import AppKit
+@preconcurrency import ApplicationServices
+import CoreGraphics
 import Observation
 
 @MainActor @Observable
@@ -8,6 +10,7 @@ final class ComputerControl {
     var selectedPID: Int32 = 0
     var busy = false
     var error: String?
+    var appPermissions: [ComputerControlStatus.Permission] = []
     private let root: URL
     private let resources: URL
     private var revision = 0
@@ -22,6 +25,12 @@ final class ComputerControl {
     }
 
     func call(_ action: String, payload: Data? = nil) async {
+        if action == "permissions" || action == "enable" {
+            appPermissions = [
+                .init(name: "Screen Recording", granted: CGPreflightScreenCaptureAccess()),
+                .init(name: "Accessibility", granted: AXIsProcessTrusted())
+            ]
+        }
         let root = root, resources = resources
         if action == "enable" || action == "stop" { revision += 1 }
         let startedRevision = revision
@@ -54,25 +63,27 @@ final class ComputerControl {
                 return try JSONDecoder().decode(ComputerControlStatus.self, from: data)
             }.value
             guard startedRevision == revision else { return }
-            if let failure = response.error { error = failure; return }
             var updated = response
             if updated.permissions == nil { updated.permissions = status.permissions }
             status = updated
-            if action != "status" { error = nil }
+            if action != "status" { error = response.error }
         } catch { self.error = "无法读取电脑控制状态：\(error.localizedDescription)" }
     }
 
     func enable() async {
-        guard !busy, let app = applications.first(where: { $0.processIdentifier == selectedPID }) else { return }
+        guard !busy else { return }
         busy = true
         defer { busy = false }
-        do {
-            let payload = try JSONSerialization.data(withJSONObject: ["pid": app.processIdentifier, "name": app.localizedName ?? "应用"])
-            await call("enable", payload: payload)
-        } catch { self.error = error.localizedDescription }
+        await call("enable")
     }
 
     func stop() async { await call("stop") }
+    func requestPermissions() async {
+        _ = CGRequestScreenCaptureAccess()
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        _ = AXIsProcessTrustedWithOptions(options)
+        await call("permissions")
+    }
     func openPrivacy(_ pane: String) {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)") { NSWorkspace.shared.open(url) }
     }

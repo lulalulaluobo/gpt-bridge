@@ -53,5 +53,25 @@ try {
   const previousCalls = calls.length;
   finishConnect(backend);
   assert((await opening).isError); assert.equal(calls.length, previousCalls);
+  // Global scope allows model-selected applications without a local target grant.
+  policy({ enabled: true, id: 'global', scope: 'desktop', expires: null });
+  const globalBackend = { ...backend, callTool: async args => {
+    if (['app', 'window'].includes(args.name)) { calls.push(args); return { content: [{ type: 'text', text: 'inventory' }] }; }
+    return backend.callTool(args);
+  } };
+  const global = new ComputerUse({ root, connect: async () => globalBackend, identity: () => live });
+  assert(!(await global.call('computer_apps', {})).isError);
+  assert(!(await global.call('computer_open', { app: 'com.example.Test' })).isError);
+  assert.deepEqual(calls.at(-1).arguments, { action: 'launch', name: 'com.example.Test', waitUntilReady: true, waitForWindow: true });
+  assert(!(await global.call('computer_windows', { app: 'PID:12' })).isError);
+  assert((await global.call('computer_observe', {})).isError);
+  assert(!(await global.call('computer_observe', { app: 'PID:12', windowID: 7 })).isError);
+  const old = global.observation.id;
+  await global.call('computer_windows', { app: 'Another app' });
+  assert((await global.call('computer_click', { observation: old, element: 'e1' })).isError);
+  assert((await global.call('computer_observe', { app: 'PID:12', windowID: 8 })).isError);
+  policy({ enabled: false });
+  assert((await global.call('computer_open', { app: 'Test' })).isError);
+  await global.revoke();
   console.log('PASS: disabled gate, strict arguments, screenshot, target identity, stale observation, no action replay, stop, expiry.');
 } finally { await control.revoke(); fs.rmSync(root, { recursive: true, force: true }); }
