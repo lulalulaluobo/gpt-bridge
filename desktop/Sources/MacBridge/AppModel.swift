@@ -260,6 +260,7 @@ final class AppModel {
         panel.title = title; panel.prompt = "选择文件夹"
         panel.canChooseDirectories = true; panel.canChooseFiles = false
         panel.canCreateDirectories = true; panel.allowsMultipleSelection = false
+        panel.showsHiddenFiles = true
         if let current { panel.directoryURL = URL(filePath: current) }
         return panel.runModal() == .OK ? panel.url : nil
     }
