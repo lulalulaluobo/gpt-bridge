@@ -49,6 +49,10 @@ async function run(allowCommands) {
     await client.connect(transport);
     const tools = (await client.listTools()).tools;
     assert(tools.some(t => t.name === 'workspace_info')); checks++;
+    if (!windows) {
+      assert(tools.some(t => t.name === 'obsidian_query')); checks++;
+      await denied('obsidian_query', { action: 'status', vault_path: outside });
+    }
     for (const name of ['set_config_value', 'get_config', 'write_pdf', 'kill_process', 'list_processes', 'get_recent_tool_calls', 'track_ui_event']) {
       assert(!tools.some(t => t.name === name)); checks++;
     }

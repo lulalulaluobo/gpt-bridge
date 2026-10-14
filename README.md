@@ -8,6 +8,12 @@
 
 ## 产品截图
 
+### 读取 Obsidian 规则（macOS）
+
+把仓库根目录加入共用目录，打开 Obsidian 并启用官方 CLI 后，可对网页 GPT 说：「先读取我 Obsidian 中与这次任务相关的规则，再完成任务。」`obsidian_query` 提供 `status`、`search`、`read` 三种只读操作，复用 Obsidian 搜索，不生成额外索引。搜索返回笔记路径，模型需继续读取正文；匹配结果不等于已遵循规则。
+
+工具只读取授权目录中的 Markdown，独立于通用命令执行开关。仓库按路径核对，CLI 不可用会返回错误；不会切换到其他仓库或执行写入、插件、JavaScript 命令。首次安装含此工具的版本后，在 ChatGPT 刷新并启用 `obsidian_query`。当前支持安装在 `/Applications/Obsidian.app` 的 macOS 官方 CLI；本地笔记提供方法，任务仍由网页 GPT 组织执行。
+
 ### 菜单栏快速控制
 
 查看连接状态、断开或重启连接，并快速切换工作区。
