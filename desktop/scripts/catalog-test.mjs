@@ -21,6 +21,8 @@ try {
   assert.equal(call('search_capabilities', { query: 'slides' }).items[0].id, sop.id);
   assert.equal(call('search_capabilities', { query: '', limit: 1 }).nextOffset, 1);
   assert.equal(call('read_skill', { id: sop.id, resource: 'refs.md' }).content, 'Reference SOP');
+  assert.equal(call('read_skill', { id: sop.id }).executionReadiness.nativeToolsExposedByReading, false);
+  assert.equal(call('search_capabilities', { query: 'no-match' }).taskRouting.version, 1);
   assert.equal(call('get_cli_info', { id: cli.id }).commandExecutionEnabled, false);
   assert(!fs.existsSync(marker));
   for (const resource of ['../outside.txt', '/etc/passwd']) assert.throws(() => call('read_skill', { id: sop.id, resource }));

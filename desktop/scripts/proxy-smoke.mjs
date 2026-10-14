@@ -49,6 +49,8 @@ async function run(allowCommands) {
   try {
     await client.connect(transport);
     const tools = (await client.listTools()).tools;
+    assert(client.getInstructions().includes('not the default executor')); checks++;
+    assert(tools.find(t => t.name === 'start_process').description.includes('Do not silently replace')); checks++;
     assert(tools.some(t => t.name === 'workspace_info')); checks++;
     for (const name of ['search_capabilities', 'read_skill', 'get_cli_info']) {
       assert(tools.some(t => t.name === name)); checks++;
@@ -69,6 +71,7 @@ async function run(allowCommands) {
     assert(tools.every(t => !t._meta)); checks++;
     assert(tools.some(t => t.name === 'start_process')); checks++;
     const info = await good('workspace_info'); assert(JSON.stringify(info).includes(allowCommands ? `current ${windows ? 'Windows' : 'Mac'} user` : 'disabled')); checks++;
+    assert.equal(JSON.parse(info.content[0].text).taskRouting.version, 1); checks++;
     const controlLock = path.join(state, 'control.lock');
     const lockedTarget = path.join(workspace, `lock-probe-${allowCommands}.txt`);
     fs.mkdirSync(controlLock);

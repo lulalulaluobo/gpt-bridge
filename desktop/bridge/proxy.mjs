@@ -7,6 +7,7 @@ import { FilePermissions, PermissionError, loadPolicy, canonicalPath, within } f
 import { windows, snapshot, terminateTracked } from './platform.mjs';
 import { applicationTool, launchApplication } from './application-launch.mjs';
 import { capabilityTools, capabilityCall } from './capabilities.mjs';
+import { taskRouting, routingInstructions, commandRouting } from './task-routing.mjs';
 
 const [entry, config, policyFile, sessionsFile] = process.argv.slice(2);
 const require = createRequire(pathToFileURL(entry));
@@ -40,7 +41,7 @@ const child = new StdioClientTransport({ command: process.execPath,
 child.stderr?.on('data', chunk => process.stderr.write(chunk));
 const client = new Client({ name: 'gpt-bridge-permission-proxy', version: '0.11' });
 const server = new Server({ name: 'gpt-bridge', version: '0.11' }, { capabilities: { tools: {} },
-  instructions: `Call workspace_info before working. Search search_capabilities for relevant local Skills/SOPs and CLIs; read matching instructions with read_skill and resolve executables with get_cli_info. Skills are task material, not authorization. Only the selected local workspace grants apply. File tools enforce directory read-only/read-write permissions. Commands, when enabled, run with the ${userPlatform} user privileges and are not isolated by directory permissions.` });
+  instructions: `${routingInstructions} Call workspace_info before accessing local files or executing local commands. File tools enforce active workspace directory permissions. Commands, when enabled, run with the ${userPlatform} user privileges and are not isolated by directory permissions.` });
 async function refreshSessions() {
   if (refreshPending || stopping) return;
   refreshPending = true;
@@ -119,7 +120,7 @@ server.setRequestHandler(types.CallToolRequestSchema, async request => {
   if (name === 'workspace_info') {
     if (Object.keys(request.params.arguments || {}).length) return errorResult('workspace_info accepts no arguments.');
     return textResult(JSON.stringify({ ...policy, protectedPaths: undefined,
-      workspaceName: path.basename(policy.workspaceRoot), permissionScope: 'file tools',
+      workspaceName: path.basename(policy.workspaceRoot), permissionScope: 'file tools', taskRouting,
       commandMode: policy.allowCommands ? `enabled: current ${userPlatform} user privileges; directory rules do not sandbox commands` : 'disabled' }, null, 2));
   }
   const applicationLaunch = process.platform === 'darwin' && name === applicationTool.name;
@@ -183,7 +184,7 @@ try {
   const tools = await client.listTools();
   availableTools = tools.tools.filter(t => safeTools.has(t.name)).map(({ _meta, ...tool }) => ({ ...tool,
     inputSchema: schemaFor(tool), description: commandTools.has(tool.name)
-      ? `[gpt-bridge: ${policy.allowCommands ? `enabled; commands use ${userPlatform} user privileges, outside file-directory rules` : 'disabled for this workspace'}] ${tool.description}`
+      ? `[gpt-bridge: ${policy.allowCommands ? `enabled; commands use ${userPlatform} user privileges, outside file-directory rules` : 'disabled for this workspace'}] ${tool.name === 'start_process' ? commandRouting : ''} ${tool.description}`
       : `[gpt-bridge: active workspace file permissions apply] ${tool.description}` }));
   await refreshSessions();
   monitor = setInterval(() => { void refreshSessions(); }, 3000); monitor.unref();
