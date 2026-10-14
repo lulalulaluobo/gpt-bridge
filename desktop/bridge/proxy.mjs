@@ -7,6 +7,7 @@ import { FilePermissions, PermissionError, loadPolicy, canonicalPath, within } f
 import { windows, snapshot, terminateTracked } from './platform.mjs';
 import { applicationTool, launchApplication } from './application-launch.mjs';
 import { obsidianTool, queryObsidian } from './obsidian.mjs';
+import { methodsTool, queryMethods } from './methods.mjs';
 
 const [entry, config, policyFile, sessionsFile] = process.argv.slice(2);
 const require = createRequire(pathToFileURL(entry));
@@ -109,7 +110,7 @@ let availableTools = [];
 server.setRequestHandler(types.ListToolsRequestSchema, async () => ({ tools: [{
   name: 'workspace_info', description: 'Return the currently active local workspace, directory read/write permissions and command mode. Call this before accessing local files.',
   inputSchema: { type: 'object', properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true, openWorldHint: false }
-}, ...availableTools, ...(process.platform === 'darwin' ? [applicationTool, obsidianTool] : [])] }));
+}, ...availableTools, methodsTool, ...(process.platform === 'darwin' ? [applicationTool, obsidianTool] : [])] }));
 server.setRequestHandler(types.CallToolRequestSchema, async request => {
   const name = request.params.name;
   if (name === 'workspace_info') {
@@ -120,7 +121,8 @@ server.setRequestHandler(types.CallToolRequestSchema, async request => {
   }
   const applicationLaunch = process.platform === 'darwin' && name === applicationTool.name;
   const obsidianQuery = process.platform === 'darwin' && name === obsidianTool.name;
-  if (!applicationLaunch && !obsidianQuery && (!safeTools.has(name) || !availableTools.some(t => t.name === name))) return errorResult('This tool is not enabled by gpt-bridge.');
+  const methodQuery = name === methodsTool.name;
+  if (!applicationLaunch && !obsidianQuery && !methodQuery && (!safeTools.has(name) || !availableTools.some(t => t.name === name))) return errorResult('This tool is not enabled by gpt-bridge.');
   // Register before inspecting the controller lock. If a call wins the race,
   // control.mjs observes pending work and refuses to stop. If control wins,
   // the call sees its lock and cannot begin an operation. There is no await
@@ -132,6 +134,7 @@ server.setRequestHandler(types.CallToolRequestSchema, async request => {
     }
     if (applicationLaunch) return textResult(JSON.stringify(await launchApplication(request.params.arguments || {}, policy.allowCommands)));
     if (obsidianQuery) return textResult(JSON.stringify(await queryObsidian(request.params.arguments || {}, permissions)));
+    if (methodQuery) return textResult(JSON.stringify(queryMethods(request.params.arguments || {}, permissions)));
     const args = await prepare(name, request.params.arguments || {});
     if (name === 'list_directory') return textResult(permissions.list(args.path, args.depth));
     let terminationTree = [];

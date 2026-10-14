@@ -49,6 +49,12 @@ async function run(allowCommands) {
     await client.connect(transport);
     const tools = (await client.listTools()).tools;
     assert(tools.some(t => t.name === 'workspace_info')); checks++;
+    assert(tools.some(t => t.name === 'method_library')); checks++;
+    fs.writeFileSync(path.join(ro, 'SKILL.md'), 'Reference method smoke test');
+    const methods = await good('method_library', { action: 'search', library_path: ro, query: 'Reference' });
+    assert.equal(JSON.parse(methods.content[0].text).matched, 1); checks++;
+    await good('method_library', { action: 'read', library_path: ro, document_path: 'SKILL.md' });
+    await denied('method_library', { action: 'search', library_path: outside });
     if (!windows) {
       assert(tools.some(t => t.name === 'obsidian_query')); checks++;
       await denied('obsidian_query', { action: 'status', vault_path: outside });
@@ -97,12 +103,14 @@ async function run(allowCommands) {
       const search = await good('start_search', { path: ro, pattern: 'source', searchType: 'files', timeout_ms: 1000 });
       const searchID = JSON.stringify(search).match(/search_\d+_\d+/)?.[0]; assert(searchID); checks++;
       let searchResult;
+      let searchOutput = JSON.stringify(search);
       for (let i = 0; i < 30; i++) {
         searchResult = await good('get_more_search_results', { sessionId: searchID });
+        searchOutput += JSON.stringify(searchResult);
         if (JSON.stringify(searchResult).includes('Search completed')) break;
         await new Promise(resolve => setTimeout(resolve, 100));
       }
-      assert(JSON.stringify(searchResult).includes('source.txt')); checks++;
+      assert(searchOutput.includes('source.txt'), searchOutput); checks++;
       await denied('get_more_search_results', { sessionId: 'search_0_0' });
       await denied('start_search', { path: outside, pattern: '.', searchType: 'files' });
       await denied('start_search', { path: ro, pattern: 'source', additionalArgs: ['--follow'] });

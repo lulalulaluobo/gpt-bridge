@@ -6,6 +6,14 @@
 
 [下载 macOS 0.11](https://github.com/lulalulaluobo/gpt-bridge/releases/tag/v0.11) · [全部版本](https://github.com/lulalulaluobo/gpt-bridge/releases) · [macOS 说明](desktop/README.md) · [Windows 托盘版说明](windows/README.md)
 
+## 本地方法资料库
+
+`method_library` 只搜索和读取授权目录中的 `SKILL.md`，不扫描 CLI、不执行 Skill、不安装依赖。将 Skill 所在目录加入共用目录（只读即可），网页 GPT 先搜索与任务相关的方法，再分页读取正文，在对话中完成内容任务，最后通过文件工具保存和回读交付物。Obsidian 规则继续通过 `obsidian_query` 查询。
+
+每次搜索从磁盘重新读取，无持久化索引 JSON；返回路径、标题、简短预览及扫描是否完整。默认最多返回 5 项，建议只读最相关的一两份；`nextOffset` 非空时应继续读取，不能将部分正文当作已完整阅读。扫描不跟随符号链接，跳过脚本、资源、依赖和参考子目录，限制深度及条目数，超出时标记 `incomplete`。
+
+资料中的脚本和 CLI 步骤不构成执行授权。方法库不能让插件会话获得缺失的 ChatGPT 内置能力；需要但不可用的制作能力应明确报告，不能默默换成其他制作路线。更新客户端后，在 ChatGPT 刷新并启用 `method_library`。此功能不恢复之前的 Skills/CLI 能力索引界面。
+
 ## 产品截图
 
 ### 读取 Obsidian 规则（macOS）
