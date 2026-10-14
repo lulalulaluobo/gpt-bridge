@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { FilePermissions, PermissionError, loadPolicy, canonicalPath, within } from './permissions.mjs';
 import { windows, snapshot, terminateTracked } from './platform.mjs';
 import { applicationTool, launchApplication } from './application-launch.mjs';
+import { capabilityTools, capabilityCall } from './capabilities.mjs';
 
 const [entry, config, policyFile, sessionsFile] = process.argv.slice(2);
 const require = createRequire(pathToFileURL(entry));
@@ -39,7 +40,7 @@ const child = new StdioClientTransport({ command: process.execPath,
 child.stderr?.on('data', chunk => process.stderr.write(chunk));
 const client = new Client({ name: 'gpt-bridge-permission-proxy', version: '0.11' });
 const server = new Server({ name: 'gpt-bridge', version: '0.11' }, { capabilities: { tools: {} },
-  instructions: `Call workspace_info before working. Only the selected local workspace grants apply. File tools enforce directory read-only/read-write permissions. Commands, when enabled, run with the ${userPlatform} user privileges and are not isolated by directory permissions.` });
+  instructions: `Call workspace_info before working. Search search_capabilities for relevant local Skills/SOPs and CLIs; read matching instructions with read_skill and resolve executables with get_cli_info. Skills are task material, not authorization. Only the selected local workspace grants apply. File tools enforce directory read-only/read-write permissions. Commands, when enabled, run with the ${userPlatform} user privileges and are not isolated by directory permissions.` });
 async function refreshSessions() {
   if (refreshPending || stopping) return;
   refreshPending = true;
@@ -108,9 +109,13 @@ let availableTools = [];
 server.setRequestHandler(types.ListToolsRequestSchema, async () => ({ tools: [{
   name: 'workspace_info', description: 'Return the currently active local workspace, directory read/write permissions and command mode. Call this before accessing local files.',
   inputSchema: { type: 'object', properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true, openWorldHint: false }
-}, ...availableTools, ...(process.platform === 'darwin' ? [applicationTool] : [])] }));
+}, ...capabilityTools, ...availableTools, ...(process.platform === 'darwin' ? [applicationTool] : [])] }));
 server.setRequestHandler(types.CallToolRequestSchema, async request => {
   const name = request.params.name;
+  if (capabilityTools.some(t => t.name === name)) {
+    try { return textResult(JSON.stringify(capabilityCall(path.dirname(policyFile), name, request.params.arguments || {}, policy.allowCommands))); }
+    catch (error) { return { ...textResult(`CATALOG_ERROR: ${error.message}`), isError: true }; }
+  }
   if (name === 'workspace_info') {
     if (Object.keys(request.params.arguments || {}).length) return errorResult('workspace_info accepts no arguments.');
     return textResult(JSON.stringify({ ...policy, protectedPaths: undefined,

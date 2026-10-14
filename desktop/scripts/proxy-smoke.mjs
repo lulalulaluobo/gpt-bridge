@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
+import { readCatalog, updateCatalog } from '../bridge/capabilities.mjs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { windows, binaryName, privateDirectory, systemEnv, assertPrivateFile, snapshot } from '../bridge/platform.mjs';
 
@@ -49,6 +50,19 @@ async function run(allowCommands) {
     await client.connect(transport);
     const tools = (await client.listTools()).tools;
     assert(tools.some(t => t.name === 'workspace_info')); checks++;
+    for (const name of ['search_capabilities', 'read_skill', 'get_cli_info']) {
+      assert(tools.some(t => t.name === name)); checks++;
+    }
+    const skillRoot = path.join(root, 'catalog-skill');
+    fs.mkdirSync(skillRoot, { recursive: true });
+    fs.writeFileSync(path.join(skillRoot, 'SKILL.md'), '---\nname: catalog-probe\ndescription: catalog nonce\n---\nSOP fixture');
+    const catalog = updateCatalog(state, 'refresh', { revision: readCatalog(state).revision, skillRoots: [skillRoot], cliRoots: [] });
+    const item = catalog.entries[0];
+    updateCatalog(state, 'toggle', { revision: catalog.revision, id: item.id, enabled: true });
+    assert(JSON.stringify(await good('search_capabilities', { query: 'catalog-probe' })).includes(item.id)); checks++;
+    assert(JSON.stringify(await good('read_skill', { id: item.id })).includes('SOP fixture')); checks++;
+    updateCatalog(state, 'toggle', { revision: readCatalog(state).revision, id: item.id, enabled: false });
+    await denied('read_skill', { id: item.id });
     for (const name of ['set_config_value', 'get_config', 'write_pdf', 'kill_process', 'list_processes', 'get_recent_tool_calls', 'track_ui_event']) {
       assert(!tools.some(t => t.name === name)); checks++;
     }

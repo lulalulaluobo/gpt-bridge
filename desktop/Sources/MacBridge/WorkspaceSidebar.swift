@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct WorkspaceSidebar: View {
+    @Environment(\.openWindow) private var openWindow
     @Bindable var model: AppModel
     @Binding var showingConnectionSettings: Bool
     @Binding var showingSharedDirectories: Bool
@@ -42,6 +43,9 @@ struct WorkspaceSidebar: View {
                 }
             }.listStyle(.sidebar)
             Divider()
+            Button("技能与 CLI", systemImage: "books.vertical") {
+                openWindow(id: "capabilities"); NSApp.activate(ignoringOtherApps: true)
+            }.buttonStyle(.plain).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 20).padding(.top, 16)
             Button("连接与设置", systemImage: "gearshape") { showingConnectionSettings = true }
                 .buttonStyle(.plain).frame(maxWidth: .infinity, alignment: .leading).padding(20)
         }.disabled(model.busy)
