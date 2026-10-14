@@ -6,8 +6,6 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { FilePermissions, PermissionError, loadPolicy, canonicalPath, within } from './permissions.mjs';
 import { windows, snapshot, terminateTracked } from './platform.mjs';
 import { applicationTool, launchApplication } from './application-launch.mjs';
-import { capabilityTools, capabilityCall } from './capabilities.mjs';
-import { taskRouting, routingInstructions, commandRouting } from './task-routing.mjs';
 
 const [entry, config, policyFile, sessionsFile] = process.argv.slice(2);
 const require = createRequire(pathToFileURL(entry));
@@ -41,7 +39,7 @@ const child = new StdioClientTransport({ command: process.execPath,
 child.stderr?.on('data', chunk => process.stderr.write(chunk));
 const client = new Client({ name: 'gpt-bridge-permission-proxy', version: '0.11' });
 const server = new Server({ name: 'gpt-bridge', version: '0.11' }, { capabilities: { tools: {} },
-  instructions: `${routingInstructions} Call workspace_info before accessing local files or executing local commands. File tools enforce active workspace directory permissions. Commands, when enabled, run with the ${userPlatform} user privileges and are not isolated by directory permissions.` });
+  instructions: `Call workspace_info before working. Only the selected local workspace grants apply. File tools enforce directory read-only/read-write permissions. Commands, when enabled, run with the ${userPlatform} user privileges and are not isolated by directory permissions.` });
 async function refreshSessions() {
   if (refreshPending || stopping) return;
   refreshPending = true;
@@ -110,17 +108,13 @@ let availableTools = [];
 server.setRequestHandler(types.ListToolsRequestSchema, async () => ({ tools: [{
   name: 'workspace_info', description: 'Return the currently active local workspace, directory read/write permissions and command mode. Call this before accessing local files.',
   inputSchema: { type: 'object', properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true, openWorldHint: false }
-}, ...capabilityTools, ...availableTools, ...(process.platform === 'darwin' ? [applicationTool] : [])] }));
+}, ...availableTools, ...(process.platform === 'darwin' ? [applicationTool] : [])] }));
 server.setRequestHandler(types.CallToolRequestSchema, async request => {
   const name = request.params.name;
-  if (capabilityTools.some(t => t.name === name)) {
-    try { return textResult(JSON.stringify(capabilityCall(path.dirname(policyFile), name, request.params.arguments || {}, policy.allowCommands))); }
-    catch (error) { return { ...textResult(`CATALOG_ERROR: ${error.message}`), isError: true }; }
-  }
   if (name === 'workspace_info') {
     if (Object.keys(request.params.arguments || {}).length) return errorResult('workspace_info accepts no arguments.');
     return textResult(JSON.stringify({ ...policy, protectedPaths: undefined,
-      workspaceName: path.basename(policy.workspaceRoot), permissionScope: 'file tools', taskRouting,
+      workspaceName: path.basename(policy.workspaceRoot), permissionScope: 'file tools',
       commandMode: policy.allowCommands ? `enabled: current ${userPlatform} user privileges; directory rules do not sandbox commands` : 'disabled' }, null, 2));
   }
   const applicationLaunch = process.platform === 'darwin' && name === applicationTool.name;
@@ -184,7 +178,7 @@ try {
   const tools = await client.listTools();
   availableTools = tools.tools.filter(t => safeTools.has(t.name)).map(({ _meta, ...tool }) => ({ ...tool,
     inputSchema: schemaFor(tool), description: commandTools.has(tool.name)
-      ? `[gpt-bridge: ${policy.allowCommands ? `enabled; commands use ${userPlatform} user privileges, outside file-directory rules` : 'disabled for this workspace'}] ${tool.name === 'start_process' ? commandRouting : ''} ${tool.description}`
+      ? `[gpt-bridge: ${policy.allowCommands ? `enabled; commands use ${userPlatform} user privileges, outside file-directory rules` : 'disabled for this workspace'}] ${tool.description}`
       : `[gpt-bridge: active workspace file permissions apply] ${tool.description}` }));
   await refreshSessions();
   monitor = setInterval(() => { void refreshSessions(); }, 3000); monitor.unref();

@@ -34,9 +34,6 @@ struct MenuContent: View {
                 openWindow(id: "settings"); NSApp.activate(ignoringOtherApps: true)
             }
             Button("打开工作文件夹", systemImage: "folder", action: model.openWorkspace).disabled(model.selected == nil)
-            Button("技能与 CLI…", systemImage: "books.vertical") {
-                openWindow(id: "capabilities"); NSApp.activate(ignoringOtherApps: true)
-            }
             Button("断开并退出 gpt-bridge") { Task { await model.quit() } }.disabled(model.busy)
         }.padding(20).frame(width: 330)
         .sheet(item: $pendingWorkspace) { workspace in
