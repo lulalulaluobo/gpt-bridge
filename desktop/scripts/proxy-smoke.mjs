@@ -51,10 +51,15 @@ async function run(allowCommands) {
     assert(tools.some(t => t.name === 'workspace_info')); checks++;
     assert(tools.some(t => t.name === 'method_library')); checks++;
     fs.writeFileSync(path.join(ro, 'SKILL.md'), 'Reference method smoke test');
+    fs.writeFileSync(path.join(state, 'method-library.json'), JSON.stringify({ schemaVersion: 1, directories: [ro] }), { mode: 0o600 });
+    const libraries = await good('method_library', { action: 'list' });
+    assert.deepEqual(JSON.parse(libraries.content[0].text).directories, [ro]); checks++;
     const methods = await good('method_library', { action: 'search', library_path: ro, query: 'Reference' });
     assert.equal(JSON.parse(methods.content[0].text).matched, 1); checks++;
     await good('method_library', { action: 'read', library_path: ro, document_path: 'SKILL.md' });
     await denied('method_library', { action: 'search', library_path: outside });
+    fs.writeFileSync(path.join(state, 'method-library.json'), JSON.stringify({ schemaVersion: 1, directories: [] }), { mode: 0o600 });
+    await denied('method_library', { action: 'read', library_path: ro, document_path: 'SKILL.md' });
     if (!windows) {
       assert(tools.some(t => t.name === 'obsidian_query')); checks++;
       await denied('obsidian_query', { action: 'status', vault_path: outside });

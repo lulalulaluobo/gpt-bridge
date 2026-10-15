@@ -4,13 +4,14 @@ struct WorkspaceSidebar: View {
     @Bindable var model: AppModel
     @Binding var showingConnectionSettings: Bool
     @Binding var showingSharedDirectories: Bool
+    @Binding var showingMethods: Bool
     var body: some View {
         VStack(spacing: 0) {
             List {
                 Section("工作区") {
                     ForEach(model.draft.workspaces) { workspace in
                         Button {
-                            model.selectWorkspace(workspace.id); showingSharedDirectories = false
+                            model.selectWorkspace(workspace.id); showingSharedDirectories = false; showingMethods = false
                         } label: {
                             HStack(spacing: 10) {
                                 Image(systemName: "folder").foregroundStyle(.blue)
@@ -20,24 +21,32 @@ struct WorkspaceSidebar: View {
                                     Image(systemName: "checkmark.circle.fill").foregroundStyle(.green).accessibilityLabel("当前生效")
                                 }
                             }.padding(.vertical, 9).padding(.horizontal, 8)
-                                .background(!showingSharedDirectories && model.draft.selectedWorkspaceID == workspace.id
+                                .background(!showingMethods && !showingSharedDirectories && model.draft.selectedWorkspaceID == workspace.id
                                             ? Color.accentColor.opacity(0.12) : .clear, in: .rect(cornerRadius: 8))
                                 .contentShape(.rect)
                         }.buttonStyle(.plain).help(workspace.root)
                     }
                     Button("添加工作区…", systemImage: "plus") {
-                        model.addWorkspace(); showingSharedDirectories = false
+                        model.addWorkspace(); showingSharedDirectories = false; showingMethods = false
                     }.padding(.vertical, 8)
                 }
                 Section("权限") {
-                    Button { showingSharedDirectories = true } label: {
+                    Button { showingSharedDirectories = true; showingMethods = false } label: {
                         HStack {
                             Label("共用目录", systemImage: "folder.badge.person.crop")
                             Spacer()
                             Text("\(model.sharedDirectories.count)").foregroundStyle(.secondary)
                         }.padding(.vertical, 9).padding(.horizontal, 8)
-                            .background(showingSharedDirectories ? Color.accentColor.opacity(0.12) : .clear,
+                            .background(!showingMethods && showingSharedDirectories ? Color.accentColor.opacity(0.12) : .clear,
                                         in: .rect(cornerRadius: 8)).contentShape(.rect)
+                    }.buttonStyle(.plain)
+                }
+                Section("资料") {
+                    Button { showingMethods = true; showingSharedDirectories = false } label: {
+                        Label("方法库", systemImage: "books.vertical")
+                            .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 9).padding(.horizontal, 8)
+                            .background(showingMethods ? Color.accentColor.opacity(0.12) : .clear, in: .rect(cornerRadius: 8))
+                            .contentShape(.rect)
                     }.buttonStyle(.plain)
                 }
             }.listStyle(.sidebar)

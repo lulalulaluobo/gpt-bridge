@@ -7,7 +7,7 @@ import { FilePermissions, PermissionError, loadPolicy, canonicalPath, within } f
 import { windows, snapshot, terminateTracked } from './platform.mjs';
 import { applicationTool, launchApplication } from './application-launch.mjs';
 import { obsidianTool, queryObsidian } from './obsidian.mjs';
-import { methodsTool, queryMethods } from './methods.mjs';
+import { libraryTool as methodsTool, configuredMethods } from './method-library.mjs';
 
 const [entry, config, policyFile, sessionsFile] = process.argv.slice(2);
 const require = createRequire(pathToFileURL(entry));
@@ -134,7 +134,7 @@ server.setRequestHandler(types.CallToolRequestSchema, async request => {
     }
     if (applicationLaunch) return textResult(JSON.stringify(await launchApplication(request.params.arguments || {}, policy.allowCommands)));
     if (obsidianQuery) return textResult(JSON.stringify(await queryObsidian(request.params.arguments || {}, permissions)));
-    if (methodQuery) return textResult(JSON.stringify(queryMethods(request.params.arguments || {}, permissions)));
+    if (methodQuery) return textResult(JSON.stringify(configuredMethods(request.params.arguments || {}, path.dirname(policyFile), policy.protectedPaths)));
     const args = await prepare(name, request.params.arguments || {});
     if (name === 'list_directory') return textResult(permissions.list(args.path, args.depth));
     let terminationTree = [];

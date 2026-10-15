@@ -26,6 +26,9 @@ try {
   fs.writeFileSync(file, 'updated_unique_method');
   assert.equal(call({ action: 'search', query: 'updated_unique_method' }).matched, 1);
   assert.equal(call({ action: 'search', query: '写作' }).matched, 0);
+  fs.writeFileSync(file, '---\nname: "Writing"\ndescription: >-\n  First line\n  second line\n---\nContent');
+  const multiline = call({ action: 'search' }).results[0];
+  assert.equal(multiline.title, 'Writing'); assert.equal(multiline.preview, 'First line second line');
   for (const args of [{ action: 'execute' }, { action: 'search', command: 'anything' },
     { action: 'search', limit: 0 }, { action: 'read', document_path: '../outside/SKILL.md' },
     { action: 'read', document_path: 'escape/SKILL.md' }, { action: 'read', document_path: 'officecli' },
