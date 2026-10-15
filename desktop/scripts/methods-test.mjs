@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { queryMethods } from '../bridge/methods.mjs';
 import { FilePermissions } from '../bridge/permissions.mjs';
+import { windows } from '../bridge/platform.mjs';
 const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'methods-test-')));
 try {
   const library = path.join(root, 'library'), outside = path.join(root, 'outside');
@@ -11,7 +12,7 @@ try {
   const file = path.join(library, 'writing', 'SKILL.md');
   fs.writeFileSync(file, '---\nname: writing\ndescription: 中文写作规范\n---\nRead the task.\nDo not invent facts.');
   fs.writeFileSync(path.join(outside, 'SKILL.md'), 'secret');
-  fs.symlinkSync(outside, path.join(library, 'escape'));
+  fs.symlinkSync(outside, path.join(library, 'escape'), windows ? 'junction' : 'dir');
   fs.writeFileSync(path.join(library, 'officecli'), 'not a method');
   const permissions = new FilePermissions({ grants: [{ path: library, access: 'readOnly' }], protectedPaths: [path.join(root, 'private')] });
   const call = args => queryMethods({ library_path: library, ...args }, permissions);

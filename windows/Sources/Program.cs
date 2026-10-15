@@ -11,6 +11,7 @@ using System.Windows.Forms;
 
 [assembly: System.Reflection.AssemblyTitle("gpt-bridge")]
 [assembly: System.Reflection.AssemblyVersion("0.11.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersion("0.11-method-library.20261015")]
 
 namespace GptBridge
 {
@@ -83,7 +84,7 @@ namespace GptBridge
         public TrayApplicationContext(ConfigurationStore configurationStore, RuntimeClient runtimeClient, bool background)
         {
             store = configurationStore; runtime = runtimeClient;
-            Window = new MainForm(store.Load(), store);
+            Window = new MainForm(store.Load(), store, runtime);
             menu = new ContextMenuStrip(); menu.Opening += delegate { BuildMenu(); };
             Tray = new NotifyIcon { Icon = disconnectedIcon, Text = "gpt-bridge · 未连接", ContextMenuStrip = menu, Visible = true };
             Tray.DoubleClick += delegate { Window.ShowSettings(); };

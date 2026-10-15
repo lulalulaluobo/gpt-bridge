@@ -8,11 +8,11 @@
 
 ## 2026-10-15 方法库更新
 
-macOS 0.11 新增「方法库」页面和只读 Obsidian 查询。方法库提供本地 Skill 文档，网页 GPT 负责理解与执行任务，gpt-bridge 负责访问资料和保存交付物。此更新不包含电脑控制或 CLI 能力索引。
+macOS 和 Windows 0.11 新增「方法库」页面和只读 Obsidian 查询。方法库提供本地 Skill 文档，网页 GPT 负责理解与执行任务，gpt-bridge 负责访问资料和保存交付物。此更新不包含电脑控制或 CLI 能力索引。
 
 升级时先断开并退出旧应用，再用 DMG 中的应用替换 Applications 中的 `gpt-bridge.app`，推出安装卷。已有连接、钥匙串、工作区和共用目录保留。打开侧栏「方法库」添加 Skills 目录，再到 ChatGPT 插件详情刷新工具，启用 `method_library`；使用 Obsidian 时同时启用 `obsidian_query`。建议在新对话中测试。
 
-发行标签为 `v0.11-method-library.20261015`，应用内部版本仍为 0.11。原 0.11 Release 及 Windows 安装包继续保留；本次未重新构建 Windows 客户端。
+macOS 发行标签为 `v0.11-method-library.20261015`，应用内部版本仍为 0.11。Windows 方法库更新的构建标记为 `method-library.20261015`，已替换 [v0.11 Release 的 Windows 安装包](https://github.com/lulalulaluobo/gpt-bridge/releases/download/v0.11/gpt-bridge-0.11-windows-x64-setup.exe)；原下载链接继续有效，macOS 附件保持原版本。
 
 ## 本地方法资料库
 
@@ -22,7 +22,7 @@ macOS 0.11 新增「方法库」页面和只读 Obsidian 查询。方法库提�
 
 每次搜索从磁盘重新读取，不存储文档索引 JSON；返回路径、标题、简短预览及扫描是否完整。每页最多 20 项，搜索通过 `offset` 翻页，建议只读最相关的一两份；读取正文时 `nextOffset` 非空则需继续，不能将部分正文当作已完整阅读。扫描不跟随符号链接，跳过脚本、资源、依赖和参考子目录，限制深度及条目数，超出时标记 `incomplete`。
 
-资料中的脚本和 CLI 步骤不构成执行授权。方法库不能让插件会话获得缺失的 ChatGPT 内置能力；需要但不可用的制作能力应明确报告，不能默默换成其他制作路线。更新客户端后，在 ChatGPT 刷新并启用 `method_library`。新版需在方法库添加目录，原共用目录不会自动导入；本次桌面界面仅支持 macOS。
+资料中的脚本和 CLI 步骤不构成执行授权。方法库不能让插件会话获得缺失的 ChatGPT 内置能力；需要但不可用的制作能力应明确报告，不能默默换成其他制作路线。更新客户端后，在 ChatGPT 刷新并启用 `method_library`。新版需在方法库添加目录，原共用目录不会自动导入。macOS 和 Windows 均支持方法库界面，Windows 隐藏目录可通过“输入路径”添加。
 
 可以在网页中这样发起任务：
 
@@ -32,11 +32,11 @@ macOS 0.11 新增「方法库」页面和只读 Obsidian 查询。方法库提�
 
 ## 产品截图
 
-### 读取 Obsidian 规则（macOS）
+### 读取 Obsidian 规则
 
 把仓库根目录加入共用目录，打开 Obsidian 并启用官方 CLI 后，可对网页 GPT 说：「先读取我 Obsidian 中与这次任务相关的规则，再完成任务。」`obsidian_query` 提供 `status`、`search`、`read` 三种只读操作，复用 Obsidian 搜索，不生成额外索引。搜索返回笔记路径，模型需继续读取正文；匹配结果不等于已遵循规则。
 
-工具只读取授权目录中的 Markdown，独立于通用命令执行开关。仓库按路径核对，CLI 不可用会返回错误；不会切换到其他仓库或执行写入、插件、JavaScript 命令。首次安装含此工具的版本后，在 ChatGPT 刷新并启用 `obsidian_query`。当前支持安装在 `/Applications/Obsidian.app` 的 macOS 官方 CLI；本地笔记提供方法，任务仍由网页 GPT 组织执行。
+工具只读取授权目录中的 Markdown，独立于通用命令执行开关。仓库按路径核对，CLI 不可用会返回错误；不会切换到其他仓库或执行写入、插件、JavaScript 命令。首次安装含此工具的版本后，在 ChatGPT 刷新并启用 `obsidian_query`。支持安装在 `/Applications/Obsidian.app` 的 macOS 官方 CLI，以及 Windows 官方 `Obsidian.com`（使用 1.12.7+ 安装器）。本地笔记提供方法，任务仍由网页 GPT 组织执行。[Obsidian CLI 说明](https://obsidian.md/help/cli)
 
 ### 菜单栏快速控制
 
@@ -66,7 +66,7 @@ ChatGPT 不会直连你的电脑端口。本机 `tunnel-client` 主动与 OpenAI
 
 新增 Windows 10 / 11 x64 原生桌面应用。图标常驻任务栏右侧托盘，关闭或最小化设置窗口后继续连接；双击图标打开设置，右键菜单可切换工作区、连接、断开和退出。支持共用目录的只读 / 读写权限、单独命令开关、登录启动及自动连接，Runtime key 使用当前 Windows 用户的 DPAPI 加密保存。
 
-在 Windows 上运行 `python windows/scripts/package.py` 后，再运行 `python windows/scripts/installer.py`，生成包含全部依赖的单文件安装包 `windows/dist/gpt-bridge-0.11-windows-x64-setup.exe`。双击安装，从开始菜单打开，无需手动解压或另装 Node.js；也可构建 ZIP 便携版。未签名预览安装包已发布在 [原 0.11 Release](https://github.com/lulalulaluobo/gpt-bridge/releases/tag/v0.11)。本次方法库桌面更新面向 macOS。[Windows 的使用、构建与验证](windows/README.md)
+在 Windows 上运行 `python windows/scripts/package.py` 后，再运行 `python windows/scripts/installer.py`，生成包含全部依赖及方法库更新的单文件安装包 `windows/dist/gpt-bridge-0.11-windows-x64-setup.exe`。双击安装，从开始菜单打开，无需手动解压或另装 Node.js；也可构建 ZIP 便携版。[0.11 Release](https://github.com/lulalulaluobo/gpt-bridge/releases/tag/v0.11) 的 Windows 安装包已更新为本次方法库版本，仍为未签名预览版。[Windows 的使用、构建与验证](windows/README.md)
 
 ## 0.11 的功能
 
@@ -78,7 +78,7 @@ ChatGPT 不会直连你的电脑端口。本机 `tunnel-client` 主动与 OpenAI
 - 命令执行单独开关；切换工作区和连接前检查活动任务。
 - Runtime API key 保存在本机钥匙串；可选登录 Mac 时启动、打开应用后自动连接。
 - 方法库独立管理只读 Skill 目录，支持搜索、刷新和正文分页阅读；网页通过 `method_library` 使用相同配置。
-- macOS `obsidian_query` 复用官方 Obsidian CLI，只读查询笔记规则；`open_application` 通过系统启动应用。
+- macOS / Windows `obsidian_query` 复用官方 Obsidian CLI，只读查询笔记规则；`open_application` 通过各自系统启动应用。
 
 ## 安装
 

@@ -60,9 +60,12 @@ async function run(allowCommands) {
     await denied('method_library', { action: 'search', library_path: outside });
     fs.writeFileSync(path.join(state, 'method-library.json'), JSON.stringify({ schemaVersion: 1, directories: [] }), { mode: 0o600 });
     await denied('method_library', { action: 'read', library_path: ro, document_path: 'SKILL.md' });
-    if (!windows) {
+    if (windows || process.platform === 'darwin') {
       assert(tools.some(t => t.name === 'obsidian_query')); checks++;
+      assert(tools.some(t => t.name === 'open_application')); checks++;
       await denied('obsidian_query', { action: 'status', vault_path: outside });
+      await denied('open_application', { app: 'bad/path' });
+      if (!allowCommands) await denied('open_application', { app: 'Notepad' });
     }
     for (const name of ['set_config_value', 'get_config', 'write_pdf', 'kill_process', 'list_processes', 'get_recent_tool_calls', 'track_ui_event']) {
       assert(!tools.some(t => t.name === name)); checks++;

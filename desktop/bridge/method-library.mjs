@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { FilePermissions, canonicalPath, within } from './permissions.mjs';
-import { assertPrivateFile, diskRoot } from './platform.mjs';
+import { assertPrivateFile, diskRoot, samePath } from './platform.mjs';
 import { methodsTool, queryMethods } from './methods.mjs';
 
 export const libraryTool = structuredClone(methodsTool);
@@ -25,7 +25,7 @@ export function configuredMethods(args, stateRoot, protectedPaths) {
   for (const directory of directories) {
     try {
       const real = canonicalPath(directory);
-      if (real !== directory || diskRoot(real) || !fs.statSync(real).isDirectory() || protectedPaths.some(p => within(real, p) || within(p, real))) throw new Error('Directory unavailable, moved or protected.');
+      if (!samePath(real, directory) || diskRoot(real) || !fs.statSync(real).isDirectory() || protectedPaths.some(p => within(real, p) || within(p, real))) throw new Error('Directory unavailable, moved or protected.');
       valid.push(real);
     } catch { errors.push({ path: directory, error: '目录不可用、已移动或包含应用私有数据。' }); }
   }
@@ -34,7 +34,7 @@ export function configuredMethods(args, stateRoot, protectedPaths) {
     return { directories, errors, mode: 'reference_only' };
   }
   if (!['search', 'read'].includes(args.action)) throw new Error('Invalid method library action.');
-  const roots = args.library_path ? valid.filter(p => p === args.library_path) : valid;
+  const roots = args.library_path ? valid.filter(p => samePath(p, args.library_path)) : valid;
   if (!roots.length) throw new Error('请先在桌面应用的方法库添加可用资料目录。');
   const permissions = new FilePermissions({ grants: valid.map(p => ({ path: p, access: 'readOnly' })), protectedPaths });
   if (args.action === 'read') {

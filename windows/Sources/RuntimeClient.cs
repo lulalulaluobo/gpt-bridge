@@ -12,17 +12,27 @@ namespace GptBridge
         private readonly string resources;
         private readonly object gate = new object();
         public RuntimeClient(string dataRoot, string resourceRoot) { root = dataRoot; resources = resourceRoot; }
+        internal string Resources { get { return resources; } }
         public bool Available { get { return File.Exists(Path.Combine(resources, "runtime/bin/node.exe")) &&
             File.Exists(Path.Combine(resources, "runtime/bin/tunnel-client.exe")) && File.Exists(Path.Combine(resources, "bridge/control.mjs")); } }
-        public Task<RuntimeStatus> Call(string action, Connection connection = null, string key = null)
+        public async Task<RuntimeStatus> Call(string action, Connection connection = null, string key = null)
+        {
+            return Json.Read<RuntimeStatus>(await Invoke("control.mjs", action, connection, key).ConfigureAwait(false));
+        }
+        public async Task<T> QueryMethods<T>(object input)
+        {
+            return Json.Read<T>(await Invoke("method-library-cli.mjs", "", input, null).ConfigureAwait(false));
+        }
+        private Task<string> Invoke(string script, string action, object input, string key)
         {
             return Task.Run(() =>
             {
                 lock (gate)
                 {
-                    if (!Available) throw new InvalidOperationException("运行包不完整，请使用完整的 Windows ZIP 解压目录。");
+                    if (!File.Exists(Path.Combine(resources, "runtime/bin/node.exe")) || !File.Exists(Path.Combine(resources, "bridge", script)))
+                        throw new InvalidOperationException("运行包不完整，请重新安装完整的 Windows 版本。");
                     var start = new ProcessStartInfo(Path.Combine(resources, "runtime/bin/node.exe"),
-                        Quote(Path.Combine(resources, "bridge/control.mjs")) + " " + action + " " + Quote(root));
+                        Quote(Path.Combine(resources, "bridge", script)) + " " + action + " " + Quote(root));
                     start.UseShellExecute = false; start.CreateNoWindow = true; start.WorkingDirectory = resources;
                     start.RedirectStandardInput = true; start.RedirectStandardOutput = true; start.RedirectStandardError = true;
                     start.StandardOutputEncoding = Encoding.UTF8; start.StandardErrorEncoding = Encoding.UTF8;
@@ -39,9 +49,9 @@ namespace GptBridge
                         Task<string> output = process.StandardOutput.ReadToEndAsync();
                         Task<string> errors = process.StandardError.ReadToEndAsync();
                         // The JSON protocol is UTF-8 even on a Chinese Windows installation.
-                        if (connection != null)
+                        if (input != null)
                         {
-                            byte[] payload = Encoding.UTF8.GetBytes(Json.Write(connection));
+                            byte[] payload = Encoding.UTF8.GetBytes(Json.Write(input));
                             process.StandardInput.BaseStream.Write(payload, 0, payload.Length);
                         }
                         process.StandardInput.Close();
@@ -56,7 +66,7 @@ namespace GptBridge
                         if (result == null) throw new InvalidOperationException("运行器没有返回状态。");
                         if (!String.IsNullOrEmpty(result.error)) throw new InvalidOperationException(result.error);
                         if (process.ExitCode != 0) throw new InvalidOperationException("运行器操作失败。");
-                        return result;
+                        return response;
                     }
                 }
             });

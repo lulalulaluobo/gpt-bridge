@@ -85,7 +85,7 @@ namespace GptBridge
             string dir = Path.Combine(Root, "credentials"); System.IO.Directory.CreateDirectory(dir);
             return Path.Combine(dir, id + ".bin");
         }
-        private static void Atomic(string file, byte[] bytes)
+        internal static void Atomic(string file, byte[] bytes)
         {
             if (File.Exists(file) && (File.GetAttributes(file) & FileAttributes.ReparsePoint) != 0)
                 throw new InvalidOperationException("应用配置不能是链接。");

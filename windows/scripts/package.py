@@ -64,6 +64,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--app-only', action='store_true', help='Compile UI only, without downloading the runtime.')
     parser.add_argument('--test', action='store_true', help='Compile and run isolated Windows integration tests.')
+    parser.add_argument('--test-resources', type=Path, help='Also test method library queries with this packaged resources directory.')
     parser.add_argument('--check', action='store_true', help='Only verify the cached official runtime archives.')
     args = parser.parse_args()
     if os.name != 'nt':
@@ -75,7 +76,7 @@ def main():
         fake = build / 'fake-runtime'
         fake.mkdir(exist_ok=True)
         compile_app(fake, entry='FakeTunnel')
-        subprocess.run([str(target)], check=True)
+        subprocess.run([str(target)] + (['--resources', str(args.test_resources.resolve())] if args.test_resources else []), check=True)
         return
     app = PROJECT / 'dist/gpt-bridge'
     app.mkdir(parents=True, exist_ok=True)
@@ -177,7 +178,12 @@ def main():
         'and Desktop Commander 0.2.52. Dependency licenses remain alongside their packages.\n'
         'Downstream change: disable automatic Chrome acquisition; PDF writing tools are not exposed.\n', encoding='utf-8')
     (resources / 'build-manifest.json').write_text(json.dumps({'product': 'gpt-bridge', 'appVersion': VERSION,
-        'architecture': 'windows-x64', 'node': '24.9.0', 'tunnelClient': '0.0.16', 'dc': '0.2.52',
+        'architecture': 'windows-x64', 'featureRelease': 'method-library.20261015',
+        'features': ['method_library', 'obsidian_query', 'open_application'],
+        'appSHA256': digest(app / 'gpt-bridge.exe'),
+        'sourceCommit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=PROJECT.parent, text=True).strip(),
+        'bridgeSHA256': {file.name: digest(file) for file in sorted((resources / 'bridge').iterdir()) if file.is_file()},
+        'node': '24.9.0', 'tunnelClient': '0.0.16', 'dc': '0.2.52',
         'lockSHA256': digest(dc / 'package-lock.json'), 'nodeSHA256': digest(bin_dir / 'node.exe'),
         'tunnelSHA256': digest(tunnel), 'downloads': INPUTS, 'signing': 'unsigned personal preview'}, indent=2), encoding='utf-8')
     shutil.copy2(PROJECT / 'README.md', app / '使用说明.md')

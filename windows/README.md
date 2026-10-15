@@ -2,6 +2,21 @@
 
 Windows 10 / 11 x64，要求 .NET Framework 4.8（较新版本 Windows 已预装）。任务栏右侧的通知区域显示常驻图标，设置窗口打开时也会显示任务栏按钮。
 
+## 2026-10-15 方法库更新
+
+Windows 已对齐 macOS 方法库更新，应用内版本仍为 0.11，构建标记为 `method-library.20261015`。
+
+[下载新版 Windows 安装包](https://github.com/lulalulaluobo/gpt-bridge/releases/download/v0.11/gpt-bridge-0.11-windows-x64-setup.exe)（已替换 v0.11 的旧 Windows 附件）。SHA-256：`47ad4346f22f3bf23f7b23ee819e4cbb119582917ba76a0048343d0478dc2537`。升级前断开并退出，已有配置和加密密钥保留。
+
+- “方法库”页独立管理最多 30 个只读 Skills 目录，支持搜索、刷新、结果分页和正文分段阅读，显示更新时间和扫描异常。隐藏文件夹可通过“输入路径”添加。
+- 网页 `method_library` 与本机界面共用 `%LOCALAPPDATA%\gpt-bridge\method-library.json`；目录变更即时生效，无需重新连接。移除只撤销方法库访问，保留原文件和共用目录权限。方法资料不构成脚本执行授权。
+- `obsidian_query` 支持官方 Windows `Obsidian.com`，只允许状态、搜索、读取。可从正在运行的程序、安装记录及默认安装位置发现 CLI；保留仓库实际路径核对和目录权限检查。此只读工具不依赖命令开关。
+- `open_application` 按开始菜单的准确名称或已注册 EXE 名称启动应用，例如 `{"app":"notepad.exe"}`。需要开启当前工作区的命令开关；返回启动请求回执，不表示应用已就绪或文档已修改。
+
+Obsidian 需要使用 1.12.7 或更新版本安装器，打开目标仓库并在设置中启用官方命令行接口；仅应用内升级可能缺少 `Obsidian.com`。本程序不安装 Obsidian，也不替换成第三方 CLI。[Obsidian 官方 CLI 说明](https://obsidian.md/help/cli)
+
+升级后在 ChatGPT 插件详情刷新并启用 `method_library`、`obsidian_query`、`open_application`，建议新开对话测试。在本机“方法库”添加目录；已有共用目录不会自动导入。
+
 ## 使用
 
 1. 推荐双击 `gpt-bridge-0.11-windows-x64-setup.exe` 安装，再从开始菜单打开 gpt-bridge。安装到当前用户的 `%LOCALAPPDATA%\Programs\gpt-bridge`，无需管理员权限，也无需另装 Node.js 或 npm。安装前先在旧版托盘菜单选择“断开并退出”。也可以使用 ZIP 便携版：完整解压到固定位置，双击 `gpt-bridge.exe`，保留旁边的 `resources` 文件夹。
@@ -30,6 +45,12 @@ python windows/scripts/installer.py
 python windows/scripts/installer-smoke.py
 node windows/scripts/bridge-smoke.mjs windows/dist/gpt-bridge/resources
 node desktop/scripts/proxy-smoke.mjs windows/dist/gpt-bridge/resources
+python windows/scripts/package.py --test --test-resources windows/dist/gpt-bridge/resources
+node desktop/scripts/methods-test.mjs
+node desktop/scripts/method-library-test.mjs
+node desktop/scripts/obsidian-test.mjs
+node desktop/scripts/application-launch-test.mjs
+node windows/scripts/application-smoke.mjs
 ```
 
 输出为 `windows/dist/gpt-bridge-0.11-windows-x64.zip`，同时保留解压目录 `windows/dist/gpt-bridge/` 和 ZIP 的 SHA-256 文件。`--app-only` 只编译界面供开发，不能用于连接；`--check` 只校验已缓存的官方运行包。

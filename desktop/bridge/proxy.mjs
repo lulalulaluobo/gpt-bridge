@@ -110,7 +110,7 @@ let availableTools = [];
 server.setRequestHandler(types.ListToolsRequestSchema, async () => ({ tools: [{
   name: 'workspace_info', description: 'Return the currently active local workspace, directory read/write permissions and command mode. Call this before accessing local files.',
   inputSchema: { type: 'object', properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true, openWorldHint: false }
-}, ...availableTools, methodsTool, ...(process.platform === 'darwin' ? [applicationTool, obsidianTool] : [])] }));
+}, ...availableTools, methodsTool, ...(['darwin', 'win32'].includes(process.platform) ? [applicationTool, obsidianTool] : [])] }));
 server.setRequestHandler(types.CallToolRequestSchema, async request => {
   const name = request.params.name;
   if (name === 'workspace_info') {
@@ -119,8 +119,8 @@ server.setRequestHandler(types.CallToolRequestSchema, async request => {
       workspaceName: path.basename(policy.workspaceRoot), permissionScope: 'file tools',
       commandMode: policy.allowCommands ? `enabled: current ${userPlatform} user privileges; directory rules do not sandbox commands` : 'disabled' }, null, 2));
   }
-  const applicationLaunch = process.platform === 'darwin' && name === applicationTool.name;
-  const obsidianQuery = process.platform === 'darwin' && name === obsidianTool.name;
+  const applicationLaunch = ['darwin', 'win32'].includes(process.platform) && name === applicationTool.name;
+  const obsidianQuery = ['darwin', 'win32'].includes(process.platform) && name === obsidianTool.name;
   const methodQuery = name === methodsTool.name;
   if (!applicationLaunch && !obsidianQuery && !methodQuery && (!safeTools.has(name) || !availableTools.some(t => t.name === name))) return errorResult('This tool is not enabled by gpt-bridge.');
   // Register before inspecting the controller lock. If a call wins the race,

@@ -21,12 +21,12 @@ export function systemEnv(home = os.homedir()) {
 }
 
 // Paths and process identities travel over stdin, never through PowerShell source interpolation.
-export function runPowerShell(script, value) {
+export function runPowerShell(script, value, home = os.homedir()) {
   return execFileSync(powershell, ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command',
     "$ErrorActionPreference='Stop'; [Console]::InputEncoding=[Text.UTF8Encoding]::new($false); " +
     "[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false); " + script],
   { input: JSON.stringify(value), encoding: 'utf8', windowsHide: true, timeout: 20000,
-    env: { ...systemEnv(), PSModulePath: path.join(path.dirname(powershell), 'Modules') },
+    env: { ...systemEnv(home), PSModulePath: path.join(path.dirname(powershell), 'Modules') },
     maxBuffer: 8 * 1024 * 1024, stdio: ['pipe', 'pipe', 'pipe'] });
 }
 

@@ -7,6 +7,8 @@ using System.Reflection;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace GptBridge
@@ -47,6 +49,41 @@ namespace GptBridge
                 Denied(delegate { PathRules.Directory(@"\\server\share"); });
                 Denied(delegate { PathRules.Directory(folder + ":hidden"); });
                 Check(PathRules.Equal(PathRules.Directory(folder), folder), "Canonical local folder changed");
+                string resources = args.Length == 2 && args[0] == "--resources" ? args[1] : Path.Combine(root, "runtime");
+                var library = new MethodLibraryStore(store.Root, resources);
+                library.Add(folder); library.Add(folder.ToUpperInvariant());
+                Check(library.Directories.Count == 1, "Method directories were not deduplicated");
+                Check(new MethodLibraryStore(store.Root, resources).Directories.Single() == folder, "Method directory round trip failed");
+                Denied(delegate { library.Add(store.Root); });
+                Denied(delegate { library.Add(root); });
+                Denied(delegate { library.Add(Path.GetPathRoot(folder)); });
+                Check(store.Load().sharedDirectories.Count == 1 && store.Load().Selected.SelectedWorkspace.allowCommands == false, "Method authorization changed workspace permissions");
+                string methodFile = Path.Combine(folder, "SKILL.md"); File.WriteAllText(methodFile, "readonly-reference", new UTF8Encoding(false));
+                library.Remove(folder); Check(File.Exists(methodFile) && library.Directories.Count == 0, "Removing method access deleted documents");
+                if (args.Length == 2)
+                {
+                    for (int i = 0; i < 24; i++)
+                    {
+                        string method = Path.Combine(folder, "method-" + i); Directory.CreateDirectory(method);
+                        File.WriteAllText(Path.Combine(method, "SKILL.md"), "---\nname: 方法 " + i + "\ndescription: 中文写作\n---\n" + String.Join("\n", Enumerable.Range(0, 250).Select(n => "line-" + n)), new UTF8Encoding(false));
+                    }
+                    library.Add(folder);
+                    var methodClient = new RuntimeClient(store.Root, resources);
+                    MethodSearchResponse first = methodClient.QueryMethods<MethodSearchResponse>(new { action = "search", query = "中文", limit = 20 }).GetAwaiter().GetResult();
+                    Check(first.matched == 24 && first.results.Count == 20 && first.nextOffset == 20, "Packaged method search or UTF-8 input failed");
+                    MethodSearchResponse second = methodClient.QueryMethods<MethodSearchResponse>(new { action = "search", query = "中文", offset = first.nextOffset.Value }).GetAwaiter().GetResult();
+                    Check(second.results.Count == 4 && second.nextOffset == null, "Packaged search paging failed");
+                    MethodDocument row = first.results[0];
+                    MethodReadResponse page = methodClient.QueryMethods<MethodReadResponse>(new { action = "read", row.library_path, row.document_path, length = 100 }).GetAwaiter().GetResult();
+                    Check(page.text.Contains("中文写作") && page.nextOffset == 100, "Packaged method reading or UTF-8 output failed");
+                    library.Remove(folder);
+                    Denied(delegate { methodClient.QueryMethods<MethodReadResponse>(new { action = "read", row.library_path, row.document_path }).GetAwaiter().GetResult(); });
+                    library.Add(folder);
+                }
+                string libraryFile = Path.Combine(store.Root, "method-library.json"); string originalLibrary = File.ReadAllText(libraryFile);
+                File.WriteAllText(libraryFile, "{broken"); Denied(delegate { new MethodLibraryStore(store.Root, resources); });
+                Check(File.ReadAllText(libraryFile) == "{broken", "Corrupt method config was overwritten");
+                File.WriteAllText(libraryFile, originalLibrary, new UTF8Encoding(false));
                 string secret = "synthetic-key-for-test-only-" + Guid.NewGuid(); store.SaveKey(config.Selected.id, secret);
                 Check(store.ReadKey(config.Selected.id) == secret, "DPAPI round trip failed");
                 string keyFile = Directory.GetFiles(Path.Combine(store.Root, "credentials"))[0];
@@ -61,7 +98,7 @@ namespace GptBridge
                 var start = new ProcessStartInfo(Application.ExecutablePath, "--echo " + String.Join(" ", special.Select(RuntimeClient.Quote))) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, StandardOutputEncoding = Encoding.UTF8 };
                 using (Process echo = Process.Start(start))
                 { string output = echo.StandardOutput.ReadToEnd(); echo.WaitForExit(); Check(Json.Read<string[]>(output).SequenceEqual(special), "CreateProcess quoting altered arguments"); }
-                using (var context = new TrayApplicationContext(store, new RuntimeClient(store.Root, root), true))
+                using (var context = new TrayApplicationContext(store, new RuntimeClient(store.Root, resources), true))
                 {
                     MainForm form = context.Window;
                     Check(context.Tray.Visible && !form.Visible, "Background startup is not tray-only");
@@ -82,9 +119,37 @@ namespace GptBridge
                     Check(form.Visible, "Tray activation did not show settings");
                     string outputDirectory = Path.GetDirectoryName(Application.ExecutablePath);
                     TabControl tabs = Field<TabControl>(form, "tabs");
+                    Check(tabs.TabPages.Cast<TabPage>().Any(p => p.Text == "方法库"), "Method library page missing");
                     for (int i = 0; i < tabs.TabCount; i++)
                     {
                         tabs.SelectedIndex = i; form.PerformLayout(); Application.DoEvents();
+                        if (args.Length == 2 && tabs.SelectedTab.Text == "方法库")
+                        {
+                            MethodLibraryControl panel = tabs.SelectedTab.Controls.OfType<MethodLibraryControl>().Single();
+                            var watch = Stopwatch.StartNew();
+                            while (Field<bool>(panel, "busy") && watch.ElapsedMilliseconds < 30000) { Application.DoEvents(); Thread.Sleep(20); }
+                            Check(Field<DataGridView>(panel, "documents").Rows.Count == 20 && Field<Button>(panel, "more").Visible, "Method page did not display paged results");
+                            Button moreButton = Field<Button>(panel, "more"); panel.PerformLayout(); Application.DoEvents();
+                            Check(moreButton.Parent.ClientRectangle.Contains(moreButton.Bounds), "Method paging button is clipped: " + moreButton.Bounds + " parent " + moreButton.Parent.ClientSize);
+                            foreach (Button action in Field<System.Collections.Generic.List<Control>>(panel, "actions").OfType<Button>().Where(b => b.Visible))
+                                Check(action.Parent.ClientRectangle.Contains(action.Bounds), "Method action is clipped: " + action.Text);
+                            MethodDocument selected = (MethodDocument)Field<DataGridView>(panel, "documents").Rows[0].Tag;
+                            using (var preview = new MethodPreviewForm(new RuntimeClient(store.Root, resources), selected))
+                            {
+                                preview.StartPosition = FormStartPosition.Manual; preview.Location = new Point(-32000, -32000); preview.Opacity = 0;
+                                preview.Show(); Application.DoEvents(); watch.Restart();
+                                while (Field<bool>(preview, "busy") && watch.ElapsedMilliseconds < 30000) { Application.DoEvents(); Thread.Sleep(20); }
+                                Check(Field<TextBox>(preview, "content").Text.Length > 0, "Method preview did not load: " + Field<Label>(preview, "notice").Text);
+                                Check(Field<TextBox>(preview, "content").SelectionStart == 0, "Method preview did not start at the first line");
+                                Button readMore = Field<Button>(preview, "more");
+                                Check(readMore.Parent.ClientRectangle.Contains(readMore.Bounds), "Preview read-more button is clipped");
+                                int previousLength = Field<TextBox>(preview, "content").TextLength;
+                                readMore.PerformClick(); Application.DoEvents(); watch.Restart();
+                                while (Field<bool>(preview, "busy") && watch.ElapsedMilliseconds < 30000) { Application.DoEvents(); Thread.Sleep(20); }
+                                Check(Field<TextBox>(preview, "content").TextLength > previousLength, "Preview did not append the next page");
+                                preview.Close();
+                            }
+                        }
                         using (var bitmap = new Bitmap(form.Width, form.Height))
                         { form.DrawToBitmap(bitmap, new Rectangle(0, 0, bitmap.Width, bitmap.Height)); bitmap.Save(Path.Combine(outputDirectory, "preview-" + i + ".png")); }
                     }

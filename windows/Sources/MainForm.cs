@@ -41,7 +41,7 @@ namespace GptBridge
         public event Action ExitRequested;
         public event Action ShowRequested;
 
-        public MainForm(Configuration initial, ConfigurationStore configurationStore)
+        public MainForm(Configuration initial, ConfigurationStore configurationStore, RuntimeClient runtimeClient = null)
         {
             store = configurationStore; config = initial;
             Text = "gpt-bridge"; Name = "GptBridgeMain";
@@ -64,6 +64,10 @@ namespace GptBridge
             tabs.Dock = DockStyle.Fill; layout.Controls.Add(tabs, 0, 1);
             var workspacePage = Page("工作区"); BuildWorkspaces(workspacePage);
             var sharedPage = Page("共用目录"); BuildShared(sharedPage);
+            var methodPage = Page("方法库");
+            var methods = new MethodLibraryControl(store.Root, runtimeClient ?? new RuntimeClient(store.Root, Path.Combine(Application.StartupPath, "resources"))) { Dock = DockStyle.Fill };
+            methodPage.Controls.Add(methods);
+            tabs.Selected += async delegate { if (tabs.SelectedTab == methodPage) await methods.RefreshIfNeeded(); };
             var settingsPage = Page("连接与设置"); BuildSettings(settingsPage);
             feedback.Dock = DockStyle.Fill; feedback.AutoEllipsis = true; feedback.Padding = new Padding(0, 12, 0, 0);
             feedback.Text = "保存只更新配置；应用并连接会启用当前工作区及共用目录权限。"; layout.Controls.Add(feedback, 0, 2);
