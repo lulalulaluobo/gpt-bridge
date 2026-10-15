@@ -4,7 +4,15 @@
 
 > 📘 第一次部署 MacBridge？建议先看[单文件部署教程](macbridge素材/MacBridge-部署教程.html)，按步骤完成隧道、桌面端、ChatGPT 插件和真实文件读写验证。教程截图已内嵌，下载这个 HTML 后即可独立打开。
 
-[下载 macOS 0.11](https://github.com/lulalulaluobo/gpt-bridge/releases/tag/v0.11) · [全部版本](https://github.com/lulalulaluobo/gpt-bridge/releases) · [macOS 说明](desktop/README.md) · [Windows 托盘版说明](windows/README.md)
+[下载 macOS 方法库更新版](https://github.com/lulalulaluobo/gpt-bridge/releases/tag/v0.11-method-library.20261015) · [Windows 0.11 安装包](https://github.com/lulalulaluobo/gpt-bridge/releases/download/v0.11/gpt-bridge-0.11-windows-x64-setup.exe) · [全部版本](https://github.com/lulalulaluobo/gpt-bridge/releases) · [macOS 说明](desktop/README.md) · [Windows 托盘版说明](windows/README.md)
+
+## 2026-10-15 方法库更新
+
+macOS 0.11 新增「方法库」页面和只读 Obsidian 查询。方法库提供本地 Skill 文档，网页 GPT 负责理解与执行任务，gpt-bridge 负责访问资料和保存交付物。此更新不包含电脑控制或 CLI 能力索引。
+
+升级时先断开并退出旧应用，再用 DMG 中的应用替换 Applications 中的 `gpt-bridge.app`，推出安装卷。已有连接、钥匙串、工作区和共用目录保留。打开侧栏「方法库」添加 Skills 目录，再到 ChatGPT 插件详情刷新工具，启用 `method_library`；使用 Obsidian 时同时启用 `obsidian_query`。建议在新对话中测试。
+
+发行标签为 `v0.11-method-library.20261015`，应用内部版本仍为 0.11。原 0.11 Release 及 Windows 安装包继续保留；本次未重新构建 Windows 客户端。
 
 ## 本地方法资料库
 
@@ -15,6 +23,12 @@
 每次搜索从磁盘重新读取，不存储文档索引 JSON；返回路径、标题、简短预览及扫描是否完整。每页最多 20 项，搜索通过 `offset` 翻页，建议只读最相关的一两份；读取正文时 `nextOffset` 非空则需继续，不能将部分正文当作已完整阅读。扫描不跟随符号链接，跳过脚本、资源、依赖和参考子目录，限制深度及条目数，超出时标记 `incomplete`。
 
 资料中的脚本和 CLI 步骤不构成执行授权。方法库不能让插件会话获得缺失的 ChatGPT 内置能力；需要但不可用的制作能力应明确报告，不能默默换成其他制作路线。更新客户端后，在 ChatGPT 刷新并启用 `method_library`。新版需在方法库添加目录，原共用目录不会自动导入；本次桌面界面仅支持 macOS。
+
+可以在网页中这样发起任务：
+
+> 先参考我的方法库中与中文写作相关的方法，再写一篇面向职场新人的文章，解释为什么收藏教程不等于学会，保存到当前工作区的 outputs 文件夹。
+
+模型应先检索、读取相关方法，再在对话中完成内容，并将交付物写入允许读写的目录。方法库目录的只读权限仅供读取方法文档，输出位置继续由工作区和共用目录权限决定。
 
 ## 产品截图
 
@@ -52,7 +66,7 @@ ChatGPT 不会直连你的电脑端口。本机 `tunnel-client` 主动与 OpenAI
 
 新增 Windows 10 / 11 x64 原生桌面应用。图标常驻任务栏右侧托盘，关闭或最小化设置窗口后继续连接；双击图标打开设置，右键菜单可切换工作区、连接、断开和退出。支持共用目录的只读 / 读写权限、单独命令开关、登录启动及自动连接，Runtime key 使用当前 Windows 用户的 DPAPI 加密保存。
 
-在 Windows 上运行 `python windows/scripts/package.py` 后，再运行 `python windows/scripts/installer.py`，生成包含全部依赖的单文件安装包 `windows/dist/gpt-bridge-0.11-windows-x64-setup.exe`。双击安装，从开始菜单打开，无需手动解压或另装 Node.js；同时提供 ZIP 便携版。当前为未签名预览版，尚未发布 Windows Release 附件。[Windows 的使用、构建与验证](windows/README.md)
+在 Windows 上运行 `python windows/scripts/package.py` 后，再运行 `python windows/scripts/installer.py`，生成包含全部依赖的单文件安装包 `windows/dist/gpt-bridge-0.11-windows-x64-setup.exe`。双击安装，从开始菜单打开，无需手动解压或另装 Node.js；也可构建 ZIP 便携版。未签名预览安装包已发布在 [原 0.11 Release](https://github.com/lulalulaluobo/gpt-bridge/releases/tag/v0.11)。本次方法库桌面更新面向 macOS。[Windows 的使用、构建与验证](windows/README.md)
 
 ## 0.11 的功能
 
@@ -63,6 +77,8 @@ ChatGPT 不会直连你的电脑端口。本机 `tunnel-client` 主动与 OpenAI
 - 主界面按工作区、共用目录分开管理；连接状态只显示一次，操作固定在底部，详细诊断收进设置。
 - 命令执行单独开关；切换工作区和连接前检查活动任务。
 - Runtime API key 保存在本机钥匙串；可选登录 Mac 时启动、打开应用后自动连接。
+- 方法库独立管理只读 Skill 目录，支持搜索、刷新和正文分页阅读；网页通过 `method_library` 使用相同配置。
+- macOS `obsidian_query` 复用官方 Obsidian CLI，只读查询笔记规则；`open_application` 通过系统启动应用。
 
 ## 安装
 

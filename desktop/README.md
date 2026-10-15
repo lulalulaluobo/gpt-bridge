@@ -2,7 +2,7 @@
 
 Apple Silicon，macOS 14 或更新版本。菜单栏应用把私有 OpenAI 隧道与本地 MCP 文件、命令能力连接起来。
 
-[下载 0.11](https://github.com/lulalulaluobo/gpt-bridge/releases/tag/v0.11) · [完整配置教程](../README.md)
+[下载 0.11 方法库更新版](https://github.com/lulalulaluobo/gpt-bridge/releases/tag/v0.11-method-library.20261015) · [完整配置教程](../README.md)
 
 ## 安装与日常使用
 
@@ -21,6 +21,16 @@ Apple Silicon，macOS 14 或更新版本。菜单栏应用把私有 OpenAI 隧�
 本版不开放 PDF 写入工具；`read_file` 的 PDF 读取依底层能力提供。核心连接与文件、命令功能无需 Chrome，不会自动下载浏览器。
 
 工作区页面只管理主目录和命令开关；共用目录独立管理，底部固定保存与应用按钮。运行细节位于设置中的“连接诊断”。保存不会重启当前连接，应用才更新权限。未选中的主目录不会自动加入授权，但若它属于共用目录范围，仍按共用权限访问。嵌套共用目录按最具体路径匹配；工作区根目录继承适用共用规则中的只读约束。
+
+## 方法库与 Obsidian
+
+在侧栏「方法库」添加 Skills 文件夹，可多选并显示隐藏目录。这里仅授权只读方法文档，不需要把 Skills 文件夹加入普通共用目录。支持搜索、刷新、分页浏览及正文阅读；目录配置保存在 `~/Library/Application Support/MacBridge/method-library.json`，网页工具与界面即时共用。移除只撤销方法库访问，不删除文件，也不撤销其他共用目录授权。
+
+升级后在 ChatGPT 插件详情刷新并启用 `method_library`。工具的 `list` 发现目录，`search` 查找相关方法，`read` 分页读取正文。搜索每次刷新磁盘内容，不建立 CLI 能力索引，不执行文档中的脚本。网页 GPT 使用方法完成任务，按需调用文件工具交付到本机；方法文档不增加模型原本没有的制作能力。
+
+若需读取 Obsidian 规则，将 Vault 加入共用目录，并保持 Obsidian 已打开、官方 CLI 已启用。`obsidian_query` 提供只读状态、搜索和笔记阅读，校验目标 Vault 及目录权限。本次支持 `/Applications/Obsidian.app`；不会自动写入笔记或切换 Vault。
+
+本次发行标签 `v0.11-method-library.20261015`，应用内部版本保持 0.11。不要同时运行构建目录中的测试副本；正式安装保留 `/Applications/gpt-bridge.app`，安装完推出 DMG。
 
 ## 从 MacBridge 升级与卸载
 
